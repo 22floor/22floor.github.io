@@ -1,0 +1,1107 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>  
+  <meta charset="UTF-8">
+  
+    <title>DbgTech</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Andy Guo">
+    
+
+    
+    <meta name="description" content="记录工作，生活，学习的点点滴滴。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="DbgTech">
+<meta property="og:url" content="https://dbgtech.github.io/page/2/index.html">
+<meta property="og:site_name" content="DbgTech">
+<meta property="og:description" content="记录工作，生活，学习的点点滴滴。">
+<meta property="og:locale" content="zh-CN">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="DbgTech">
+<meta name="twitter:description" content="记录工作，生活，学习的点点滴滴。">
+
+    
+    <link rel="alternative" href="/atom.xml" title="DbgTech" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+  <body>
+    <header>
+      
+<div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="DbgTech" title="DbgTech"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="DbgTech">DbgTech</a></h1>
+				<h2 class="blog-motto">—— 慢下来，享受思考的小确幸！</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">Home</a></li>
+					
+						<li><a href="/column">Column</a></li>
+					
+						<li><a href="/archives">Archives</a></li>
+					
+						<li><a href="/about">About</a></li>
+					
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main">
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/07/17/Windows-C-Time-Functions.html" title="Windows C 时间函数" itemprop="url">Windows C 时间函数</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-07-17T09:15:33.000Z" itemprop="datePublished"> 发表于 2017-07-17</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>平时写代码总会时不时碰到使用当前时间的问题，在Windows上有很多中获取时间的方法，他们之间有什么区别呢？这里做一个简要总结（可能还不全，后面看到再进行补充）。</p>
+<h3 id="时间函数"><a href="#时间函数" class="headerlink" title="时间函数"></a>时间函数</h3><p><strong>time()/_time32()/_time64()</strong></p>
+<p>上述三个函数是C运行时库中提供的时间函数。三个函数的返回值是自1970年1月1日午夜到现在的秒数；即从1970-01-01 00:00:00开始算起，到当前这一时刻的总秒数。所以这三个函数的精度就是秒了。其中time()内直接调用的_time32()函数，两个函数相当于一个函数。</p>
+<p>time()返回值为time_t（64位系列__time64_t）。time_t＝long int，它的范围从<code>1970－1－1 0:0:0</code>到<code>2038－1－18 19:14:07</code>；__time64_t＝__int64，它范围从<code>1970－1－1 0:0:0</code>到<code>3000－12－31 23:59:59</code>，也就是说现在使用这两个函数的代码在对应的年份将出现溢出错误。再者，两个函数出错时，返回-1。有一些代码规范会要求判断这个返回值。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">#include &quot;stdafx.h&quot;</span><br><span class="line">#include &lt;stdlib.h&gt;</span><br><span class="line">#include &lt;time.h&gt;</span><br><span class="line"></span><br><span class="line">int _tmain(int argc, _TCHAR* argv[])</span><br><span class="line">&#123;</span><br><span class="line">	time_t ttime = time(NULL);</span><br><span class="line">	__time64_t ttime64 = _time64(NULL);</span><br><span class="line"></span><br><span class="line">	if (ttime != -1)</span><br><span class="line">		printf(&quot;_time32(): %d\n&quot;, ttime);</span><br><span class="line"></span><br><span class="line">	if (ttime64 != -1)</span><br><span class="line">		printf(&quot;_time64(): %ld\n&quot;, ttime64);</span><br><span class="line"></span><br><span class="line">	system(&quot;pause&quot;);</span><br><span class="line">	return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/07/17/Windows-C-Time-Functions.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/笔记/">笔记</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/time/">time</a><a href="/tags/C-C/">C/C++</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/07/03/Universal-Windows-Platform.html" title="Universal Windows Platform 介绍" itemprop="url">Universal Windows Platform 介绍</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-07-03T09:15:33.000Z" itemprop="datePublished"> 发表于 2017-07-03</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>UWP是Universal Windows Platform的简称，即通用Windows平台。为了弄懂UWP到底是个什么东西，回溯了N年前的资料，弄懂了前后的发展关系，才逐渐明白了它是个什么东西。这一篇简单把这个过程总结一下，给其他对UWP以及之前一些概念比较迷糊的朋友一点启发。文章的内容是从网络上查找资料且整理后串起来的，有些说法不一定对。如果发现不正确的地方可以帮忙指出，对文章修改一下，避免误导后来者。</p>
+<h3 id="前世今生"><a href="#前世今生" class="headerlink" title="前世今生"></a>前世今生</h3><p><strong>.NET</strong>，简单说是微软对抗Java而研发的编程框架。先说一下Windows DNA，英文全称为Windows Distributed interNet Application architecture，分布式应用程序开发框架，主要基于COM/COM+等建立。它是Win2000时期的开发框架，被称为新一代计算解决方案的框架。还有部分原因是Java这种基于虚拟机的跨平台模型的成功，促使微软开发自己的跨平台的编程框架，就是.Net框架。.Net框架致力于敏捷软件开发（Agile software development）、快速应用开发（Rapid application development）、平台无关性和网络透明化的软件开发平台。以通用语言运行库（Common Language Runtime）为基础，支持多种语言（C#、F#、VB.NET、C++、Python等）的开发。更多关于.NET的内容，可以找一下相关的资料。</p>
+<p>上面最后提到了通用语言运行库，即Common Language Runtime，下面看一下这是个什么东西。</p>
+<p><strong>CLR</strong>，通用语言运行平台（Common Language Runtime，简称CLR）。它是微软为.NET的虚拟机所选用的名称，即微软对通用语言架构（CLI）的实现版本，定义了一个代码运行的环境。CLR运行一种称为通用中间语言（IL）的字节码，这个是微软的通用中间语言的实现版本。开发人员使用高级编程语言撰写程序，编译器将代码编译成微软的中间语言(MSIL)。CLR内置有即时编译器，运行的时候CLR会将MSIL码转换为操作系统的原生码（Native code）。</p>
+<p><strong>CLI</strong>，通用语言基础架构（Common Language Infrastructure，简称CLI）。它是一个开放的技术规范，由微软联合惠普以及英特尔于2000年向ECMA倡议。通用语言基础架构定义了构成.NET Framework基础结构的可执行码以及代码的运行时环境的规范，定义了一个语言无关的跨体系结构的运行环境，这使得开发者可以用规范内定义的各种高级语言来开发软件，并且无需修正即可将软件运行在不同的计算机体系结构上。通用语言运行时（CLR）则是微软对此标准（CLI）的实现。<br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/07/03/Universal-Windows-Platform.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/笔记/">笔记</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Win10/">Win10</a><a href="/tags/UWP/">UWP</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/06/15/Mardown-Template.html" title="Markdown语法模板" itemprop="url">Markdown语法模板</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-06-15T01:33:32.000Z" itemprop="datePublished"> 发表于 2017-06-15</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>从最开始看到Markdown开始，到后面准备用Markdown记录笔记，心得；再到后来要鼓捣自己的静态页博客，断断续续学习了不少关于Markdown语法（请允许我这么称呼它）的资料。写东西时，总忘记怎么写，要查一下，这里就整理成博客，记录一下。</p>
+<p>文章内容参考了如下几个资料：</p>
+<ol>
+<li><a href="https://www.zybuluo.com/mdeditor" target="_blank" rel="noopener">作业部落出品的编辑器</a></li>
+<li><a href="http://write.blog.csdn.net/mdeditor" target="_blank" rel="noopener">CSDN博客编辑器</a></li>
+<li><a href="http://www.appinn.com/markdown/" target="_blank" rel="noopener">Markdown语法入门</a></li>
+</ol>
+<h3 id="1-链接"><a href="#1-链接" class="headerlink" title="1. 链接"></a>1. 链接</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">[来源](https://www.zybuluo.com/mdeditor)</span><br><span class="line"></span><br><span class="line">This is [an example](http://example.com/ &quot;Title&quot;) inline link.</span><br></pre></td></tr></table></figure>
+<p>显示如下：</p>
+<p><a href="https://www.zybuluo.com/mdeditor" target="_blank" rel="noopener">来源</a></p>
+<p>This is <a href="http://example.com/" title="Title" target="_blank" rel="noopener">an example</a> inline link. （鼠标移上链接去有提醒）</p>
+<h3 id="2-标题-ReadMore-标记"><a href="#2-标题-ReadMore-标记" class="headerlink" title="2. 标题 / ReadMore 标记"></a>2. 标题 / ReadMore 标记</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"># 欢迎使用 Cmd Markdown 编辑阅读器 #</span><br><span class="line">## 欢迎使用 Cmd Markdown 编辑阅读器 ##</span><br><span class="line">### 欢迎使用 Cmd Markdown 编辑阅读器 ###</span><br><span class="line">#### 欢迎使用 Cmd Markdown 编辑阅读器 ####</span><br><span class="line">##### 欢迎使用 Cmd Markdown 编辑阅读器 #####</span><br><span class="line">###### 欢迎使用 Cmd Markdown 编辑阅读器 ######</span><br><span class="line"></span><br><span class="line">&lt;!-- more --&gt;  // 在文章中不显示，但是在jacman主题中被首页显示为 ReadMore 标签，打开文章</span><br></pre></td></tr></table></figure>
+<p>貌似Github编辑出来的标题，识别不了那么多，后面再研究一下！！！<br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/06/15/Mardown-Template.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/笔记/">笔记</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Markdown/">Markdown</a><a href="/tags/笔记/">笔记</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/06/14/Win32-SEH-Internals.html" title="【转载】Windows异常处理" itemprop="url">【转载】Windows异常处理</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-06-14T11:33:32.000Z" itemprop="datePublished"> 发表于 2017-06-14</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>前一篇总结了一些Windows异常分发的内容，其实里面还有很多点没有涉及到。这篇来学习一下异常处理，及RtlDispatchException遍历异常处理函数列表，以及用户注册的异常处理函数如何被调用，进一步还有try在代码中的实现方式等等。由于前行者已经为我们提供了一篇非常棒的文章了，这里我就不露怯，自己总结了。直接将董岩翻译的文章转载到此处。对文章稍作整理，如下文。</p>
+<p>原文:<a href="http://www.microsoft.com/msj/0197/exception/exception.aspx" target="_blank" rel="noopener">http://www.microsoft.com/msj/0197/exception/exception.aspx</a></p>
+<p>by Andy @ 2017-06-14 20:09</p>
+<hr>
+<div align="center"><br>A Crash Course on the Depths of Win32 Structured Exception Handling<br><br>Matt Pietrek 著 董岩 译<br></div>
+
+<p>在Win32操作系统提供的所有功能中，使用最广泛而又没有公开的恐怕要数结构化异常处理（Structured Exception Handling，SEH）了。当你考虑Win32结构化异常处理时，也许会想到__try、__finally和__except等术语。可能你在任何一本讲解Win32的好书上都能找到关于SEH较为详细的描述，甚至Win32 SDK文档也对使用__try、__finally和__except进行结构化异常处理进行了相当完整的描述。</p>
+<p>既然已经有了这些文档，那为什么我还说SEH并未公开呢？本质上来说，Win32结构化异常处理是操作系统提供的服务。你可能找到的所有关于SEH方面的文档都只是描述了某个特别的编译器的运行时库对操作系统实现的封装。关键字__try、__finally或者__except并没有什么神奇的。Microsoft的操作系统和编译器开发小组定义了这些关键字和它们的作用。其它C++编译器厂商完全按照它们的语义来就可以了。当编译器的SEH支持层把原始的操作系统SEH的复杂性封装起来的时候，它同时也把原始的操作系统SEH的细节隐藏了起来了。</p>
+<p>我曾经接到大量来自想自己实现编译器层面SEH的人发来的电子邮件，他们苦于找不到关于操作系统SEH实现方面的任何文档。按说，我应该能够告诉他们Visual C++或Borland C++的运行时库源代码就是他们想要的。但是不知出于什么原因，编译器层面的SEH看起来好像是个大秘密。无论是Microsoft还是Borland都没有提供他们的SEH支持层最底层的源代码。（现在Microsoft仍然没有提供这些源代码，它提供的是编译过的目标文件，而Borland则提供了相应的源代码）</p>
+<p>在本文中，我会剥掉结构化异常处理外面的包装直至其最基本的概念。在此过程中，我会把操作系统提供的支持与编译器通过代码生成和运行时库提供的支持分开来说。当我挖掘到关键的操作系统例程时，我使用的是运行于Intel处理器上的Windows NT 4.0。但是我这里讲的大部分内容同样也适用于其它处理器。我会避免涉及到真实的C++异常处理，它使用的是catch()而不是__except。从内部来讲，真实的C++异常处理的实现与我这里要讲的非常相似。但是真实的C++异常处理有一些其它的复杂问题，它会混淆我这里要讲的一些概念。</p>
+<p>在挖掘组成Win32 SEH的晦涩的.H和.INC文件的过程中，我发现最好的信息来源之一是IBM OS/2头文件（特别是BSEXCPT.H）。如果你涉足这方面已经有一段时间了，就不会感到太奇怪。这里描述的SEH机制是早在Microsoft还工作在OS/2上时就已经定义好的。由于这个原因，你会发现Win32下的SEH和OS/2下的SEH极其相似。（现在我们可能已经没有机会体验这一点了，OS/2已经永远成为历史了。）<br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/06/14/Win32-SEH-Internals.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/转载/">转载</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Exception/">Exception</a><a href="/tags/Windows/">Windows</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/05/21/Stack-Cookie.html" title="Stack Cookie运行原理" itemprop="url">Stack Cookie运行原理</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-05-21T03:33:32.000Z" itemprop="datePublished"> 发表于 2017-05-21</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>在漏洞中，有一个最基本的漏洞形成原因就是栈溢出。为了防止程序缓冲区溢出而受到攻击，从VS2005开始的编译器中加入了基于Cookie的安全检查，来检测缓冲区溢出。这一篇来简单说说基于Cookie的安全检查。</p>
+<p>我们以VS2008编译出来的Release版本为例看一下基于Cookie的安全检查如何运作。首先给出例子的代码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">#include &quot;stdafx.h&quot;</span><br><span class="line">#include &lt;Windows.h&gt;</span><br><span class="line"></span><br><span class="line">#pragma optimize(&quot;&quot;, off)</span><br><span class="line"></span><br><span class="line">void StackCookie(LPCTSTR lpszInput)</span><br><span class="line">&#123;</span><br><span class="line">	TCHAR szFstBuffer[3];</span><br><span class="line">	_stprintf(szFstBuffer, _T(&quot;%s\n&quot;), lpszInput);</span><br><span class="line">	OutputDebugString(szFstBuffer);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">#pragma optimize(&quot;&quot;, on)</span><br><span class="line"></span><br><span class="line">int _tmain(int argc, _TCHAR* argv[])</span><br><span class="line">&#123;</span><br><span class="line">	StackCookie(_T(&quot;DB&quot;));</span><br><span class="line">	system(&quot;pause&quot;);</span><br><span class="line">	return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/05/21/Stack-Cookie.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Windbg/">Windbg</a><a href="/tags/Stack-Cookie/">Stack Cookie</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/05/21/Windows-Exception-Dispatch.html" title="Windows异常分发" itemprop="url">Windows异常分发</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-05-21T03:33:32.000Z" itemprop="datePublished"> 发表于 2017-05-21</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <h4 id="异常定义"><a href="#异常定义" class="headerlink" title="异常定义"></a>异常定义</h4><p>异常通常是CPU在执行指令时因为检测到预先定义的某个（或多个）条件而产生的同步事件。注意它与中断的区别。</p>
+<blockquote>
+<p>中断通常是有CPU外部的输入输出设备（硬件）所触发的，供外部设备通知CPU”有事情需要处理”，因此又叫做中断请求。<br>中断请求的目的是希望CPU暂时停止执行当前正在执行的程序，转去执行中断请求所对应的中断处理例程。</p>
+</blockquote>
+<p>异常的来源有三种：</p>
+<ol>
+<li>程序错误，即当CPU在执行程序指令时遇到操作数有错误或检测到指令规范中定义的非法情况。如除零操作，用户模式下的特权指令。</li>
+<li>某些特殊指令，即这些指令的预期就是产生相应的异常。如INT3指令。</li>
+<li>奔腾CPU引入的机器检查异常，即当CPU执行指令期间检测到CPU内部或外部的硬件错误。</li>
+</ol>
+<p>异常进行分类，也可以分为三类:</p>
+<ol>
+<li>错误，导致错误类异常的情况通常可以被纠正。比如内存页错误。</li>
+<li>陷阱类异常，CPU报告陷阱类异常时，异常指令通常已经执行完毕，压入栈的CS/EIP值为异常返回后要执行指令。</li>
+<li>终止类异常，用来报告严重的错误，硬件错误，系统表中非法值等，这类异常不允许恢复执行。</li>
+</ol>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/05/21/Windows-Exception-Dispatch.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Windbg/">Windbg</a><a href="/tags/Exception/">Exception</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/05/17/C-runtime-library-analysis.html" title="C\C++运行时库源代码阅读" itemprop="url">C\C++运行时库源代码阅读</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-05-17T03:33:32.000Z" itemprop="datePublished"> 发表于 2017-05-17</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p><code>C\C++</code>运行时库主要是提供了<code>C\C++</code>运行时使用的一些公用函数，包括参数处理，浮点运算，内存处理，输入输出，国际化，内存的分配与释放管理，数据类型转换，调试，目录控制等等。</p>
+<p>这些函数可以静态链接或动态链接库的形式提供给<code>C\C++</code>程序使用。静态链接，就是将代码嵌入到EXE或DLL中，编译出来的文件比较大。但是它不需要再依赖动态运行时库，如MSVCR80.dll等；动态链接库，仅仅将库的导出函数信息编译到EXE中，在程序运行时，需要动态加载MSVCR80.dll等运行时库文件。</p>
+<p>由于运行时库中包含了众多公用函数，这些公用函数，比如new，需要调用系统的一些函数进行初始化，所以运行时库也是需要初始化的。至于初始化时机，不用说肯定要在用户代码运行之前。否则程序代码调用了new方法，而此时还没有准备好可以分配的内存。那就出现错误了。对于Win32控制台程序，就是要在main()函数执行之前。</p>
+<p>VC的做法是在编译器提供模块的入口函数，在模块的入口函数中，先调用CRT的初始化逻辑，然后在调用main()函数。即：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">CRT入口函数()</span><br><span class="line">&#123;</span><br><span class="line">    CRT初始化</span><br><span class="line">    main()</span><br><span class="line">    CRT清理</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>我们以VS2008为例，简单过一下 CRT的初始化与清理：<br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/05/17/C-runtime-library-analysis.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/C-C/">C\C++</a><a href="/tags/运行时库/">运行时库</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/04/12/Windbg-error-outputerror.html" title="Windbg的!error命令输出 Unable to get error code text" itemprop="url">Windbg的!error命令输出 Unable to get error code text</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-04-12T03:33:32.000Z" itemprop="datePublished"> 发表于 2017-04-12</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>对于经常用Windbg调试的人来说，系统函数调用失败，通常会用!gle来看一下GetLastError（）函数返回了什么内容呢？但是这个函数返回的是一个错误码，例如0x00000005，这玩意可是人无法直接识别的（当然了0x00000005这个码倒是可以直接识别，拒绝访问嘛，但不是所有的错误码都能记住的。）。当然了Windbg还是比较人性化的，它立马提供了一个扩展命令，即!error。这个命令可以将错误码转换成“人话”，但是尝试无数次，并且是在换了无数个Windbg版本后尝试了无数次，它的结果始终不变，如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">0:089&gt; !error 0x5</span><br><span class="line">Error code: (Win32) 0x5 (5) - &lt;Unable to get error code text&gt;</span><br></pre></td></tr></table></figure>
+<p>后面尖括号中的内容是“人话”，意思就是无法获取到错误的文本。换个说法就是!error命令执行有问题，到底有啥问题，它没告诉你！每次看到这段文本就有“一刀捅死”Windbg的冲动。冲动归冲动，还是拿它没办法。好吧，那咱们自己找一下问题根源吧。</p>
+<p>!error 命令存在于ext.dll模块中，执行该命令时即调用 ext!error() 函数，调用栈如下所示：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">0:001&gt; kv</span><br><span class="line"> # ChildEBP RetAddr  Args to Child</span><br><span class="line">00 01f3d8e0 616ca9c7 01f3d904 01f3d900 00000005 ext!FormatAnyStatus+0x1d6 (FPO: [Non-Fpo])</span><br><span class="line">01 01f3d908 616caa87 0059bfe8 00000000 00569ec0 ext!DecodeErrorForMessage+0x23 (FPO: [Non-Fpo])</span><br><span class="line">02 01f3da7c 616cab2b 00000000 616caae0 00569ec0 ext!DecodeError+0x36 (FPO: [Non-Fpo])</span><br><span class="line">03 01f3da98 59d06dd9 00569ec4 01f3db6f 76c9bc84 ext!error+0x4b (FPO: [2,3,4])</span><br><span class="line">04 01f3db14 59d06f8c 00569ec0 01f3dd3c 01f3dc88 dbgeng!ExtensionInfo::CallA+0x255 (FPO: [Non-Fpo])</span><br><span class="line">05 01f3dcb8 59d07024 00569ec0 01f3dd3c 01f3dd48 dbgeng!ExtensionInfo::Call+0xfb (FPO: [Non-Fpo])</span><br><span class="line">06 01f3dce4 59d059ed 01f3dd3c 01f3dd48 00000000 dbgeng!ExtensionInfo::CallAny+0x6c (FPO: [Non-Fpo])</span><br><span class="line">07 01f3e150 59d3ec70 00000000 00000000 00000000 dbgeng!ParseBangCmd+0x46f (FPO: [Non-Fpo])</span><br><span class="line">08 01f3e1cc 59d3faaf 76c985bc 00569ec0 00000001 dbgeng!ProcessCommands+0x816 (FPO: [0,25,4])</span><br><span class="line">09 01f3e22c 59c8e40f 00000000 76c98104 00000000 dbgeng!ProcessCommandsAndCatch+0xad (FPO: [Non-Fpo])</span><br><span class="line">0a 01f3e694 59c8e5e8 0000000a 00000000 76c98148 dbgeng!Execute+0x247 (FPO: [Non-Fpo])</span><br><span class="line">0b 01f3e6d8 002f4bd7 00569ec8 00000001 01f3eab8 dbgeng!DebugClient::ExecuteWide+0x68 (FPO: [Non-Fpo])</span><br><span class="line">0c 01f3ea94 002f5068 00000006 00000008 00000000 windbg!ProcessCommand+0x12f (FPO: [Non-Fpo])</span><br><span class="line">0d 01f3fab0 002f72d1 761fbfe9 00000000 00000000 windbg!ProcessEngineCommands+0xd0 (FPO: [0,1023,4])</span><br><span class="line">0e 01f3faec 74fd336a 00000000 01f3fb38 76ff9902 windbg!EngineLoop+0x571 (FPO: [Non-Fpo])</span><br><span class="line">0f 01f3faf8 76ff9902 00000000 76f56898 00000000 kernel32!BaseThreadInitThunk+0xe (FPO: [Non-Fpo])</span><br><span class="line">10 01f3fb38 76ff98d5 002f6d60 00000000 00000000 ntdll!__RtlUserThreadStart+0x70 (FPO: [Non-Fpo])</span><br><span class="line">11 01f3fb50 00000000 002f6d60 00000000 00000000 ntdll!_RtlUserThreadStart+0x1b (FPO: [Non-Fpo])</span><br></pre></td></tr></table></figure>
+<p>从上述的调用栈，可以看到Windbg执行扩展命令的过程。dbgeng!ExtensionInfo类用于处理扩展命令，并调用对应的扩展模块。栈中可以看到对 ext!error()函数的调用。其后依次解析错误，将错误转换成可读字符串，最终调用到FormatAnyStatus()，它的作用就是将错误码转换成对应字符串。当然出现问题的也是它了。<br>Windbg调试虽然强大，但是一堆汇编，想要了解函数的大致流程，用它就费劲了。那么该是其他工具出场的时候了，IDA Pro，大名鼎鼎的反汇编工具。反汇编之后，找到FormatAnyStatus()函数，很快就找到了问题根源。结合IDA F5的结果，以及调试过程，确定了出问题的代码在该函数后半截，所以给出FormatAnyStatus() 的后半截函数，如下:<br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/04/12/Windbg-error-outputerror.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Windbg/">Windbg</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/01/02/2017-new-year-open.html" title="新年开端" itemprop="url">新年开端</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-01-02T08:13:30.000Z" itemprop="datePublished"> 发表于 2017-01-02</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>2017年了，新年了！Happy New Year！</p>
+<p>总想在新年说点什么，又突然没什么想说的了！看看2016年的新年开端博客，居然是最新博客的第二篇（原有博客不在此处，^_^）。看看2016年写的文章觉得就在眼前，好象是上一周的文章一样。其实，时光穿梭，一年时光已经逝去。看着看着，就像从中看到15年做了点什么，有点什么成绩！结果却是无奈，对15年似乎没有任何印象了，眼前全是16年的事情，像是昨天的事情一般。</p>
+<p>或许是因为2016年有太多太多重要的事情，来不及思考，来不及回味，一味地被推着向前。回头望望2016，中奖了，抑制不住地兴奋；父母来了，前后忙活生怕一点不周，让他们不适；订婚了，女朋友变成了未婚妻；结婚了，未婚妻变成了媳妇；正式进入婚姻生活，一点点不适。</p>
+<p>2015年最大的事是有了一个女朋友！2016年最大的事情就是有了一个老婆。还没来及回味婚礼，已经结束！还没来及体验新婚，已经进入正常柴米油盐。没有学会用新的方式来思考新的生活，依旧我行我素，碰到的是生活中的磕磕绊绊。需要渐渐学习宽容，学习用新的思考方式，思考生活。现在不是一个人，现在是两个人；现在不是一家人，现在是两家人；现在不只是家里人，现在开始要是初中，高中，大学，工作，几圈人。希望2017年，慢慢适应，渐渐磨砺，有更好的生活！<br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/01/02/2017-new-year-open.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/散记/">散记</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/心情/">心情</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2016/12/24/open-my-self-blog.html" title="独立博客开通啦！" itemprop="url">独立博客开通啦！</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2016-12-24T01:41:28.000Z" itemprop="datePublished"> 发表于 2016-12-24</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>独立博客开通啦！！！</p>
+<p>独立博客开通啦！！！</p>
+<p>独立博客开通啦！！！</p>
+<p>重要的事情要说三遍，让我记住！博客很早之前就有了，对校内网有印象的小伙伴应该还记得它上面有日志功能，可后来感觉它忽的一下就没了，昙花一现！最终让我不再用它的原因其实很简单，太势利了，商业化太严重，到处都是推广与广告！无奈转战QQ博客，可是它也是繁杂无比，同样存在广告与推广。无奈，只好将所有文章放到CSDN上吧，CSDN作为技术站点，广告也有很多，但是它的博客相对清净！在本科，研究生期间在CSDN的博客发布了自己的一些心得，学习笔记和一些技术积累。</p>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2016/12/24/open-my-self-blog.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/散记/">散记</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/心情/">心情</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+
+  <nav id="page-nav" class="clearfix">
+    <a class="extend prev" rel="prev" href="/"><span></span>Prev</a><a class="page-number" href="/">1</a><span class="page-number current">2</span>
+  </nav>
+
+</div>
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  <div class="linkslist">
+  <p class="asidetitle">专栏</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://dbgtech.github.io/Tools/" target="_blank" title="常用工具">常用工具</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+		  
+			<li><a href="/categories/散记/" title="散记">散记<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/笔记/" title="笔记">笔记<sup>6</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/读书/" title="读书">读书<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/调试/" title="调试">调试<sup>8</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/转载/" title="转载">转载<sup>1</sup></a></li>
+		  
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			
+				<li><a href="/tags/Windbg/" title="Windbg">Windbg<sup>5</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Exception/" title="Exception">Exception<sup>4</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Windows/" title="Windows">Windows<sup>3</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/心情/" title="心情">心情<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/X86汇编/" title="X86汇编">X86汇编<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Markdown/" title="Markdown">Markdown<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Stack-Cookie/" title="Stack Cookie">Stack Cookie<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/time/" title="time">time<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C/C++">C/C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Win10/" title="Win10">Win10<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/UWP/" title="UWP">UWP<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/读书笔记/" title="读书笔记">读书笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C\C++">C\C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/反思/" title="反思">反思<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/实模式/" title="实模式">实模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/保护模式/" title="保护模式">保护模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/运行时库/" title="运行时库">运行时库<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/WSL/" title="WSL">WSL<sup>1</sup></a></li>
+			
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://git-scm.com/book/zh/v2" target="_blank" title="Git">Git</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://hexo.io/zh-cn/docs/" target="_blank" title="Hexo">Hexo</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://36kr.com/" target="_blank" title="36氪">36氪</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://wiki.osdev.org/Expanded_Main_Page" target="_blank" title="OSDev">OSDev</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.reactos.com/" target="_blank" title="ReactOS">ReactOS</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.freebuf.com/" target="_blank" title="FreeBuf">FreeBuf</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.appinn.com/markdown/" target="_blank" title="Makedown">Makedown</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://www.huxiu.com/" target="_blank" title="虎嗅网">虎嗅网</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://bbs.pediy.com/" target="_blank" title="看雪论坛">看雪论坛</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.geekpark.net/" target="_blank" title="极客公园">极客公园</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  
+  <div class="archiveslist">
+    <p class="asidetitle"><a href="/archives">归档</a></p>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/12/">十二月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/11/">十一月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/01/">一月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/12/">十二月 2016</a><span class="archive-list-count">1</span></li></ul>
+  </div>
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+		<p class="copyright">
+		Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Jacman">Jacman</a> © 2018 
+		
+		<a href="/about" target="_blank" title="Andy Guo">Andy Guo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+<script src="/js/jquery.qrcode-0.12.0.min.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+  
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else{
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+        
+    }
+  });
+});
+</script>
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+<!-- Analytics Begin -->
+
+
+
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "//hm.baidu.com/hm.js?e6d1f421bbc9962127a50488f9ed37d1";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+
+
+
+<!-- Analytics End -->
+
+<!-- Totop Begin -->
+
+	<div id="totop">
+	<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+	</div>
+	<script src="/js/totop.js"></script>
+
+<!-- Totop End -->
+
+<!-- MathJax Begin -->
+<!-- mathjax config similar to math.stackexchange -->
+
+
+<!-- MathJax End -->
+
+<!-- Tiny_search Begin -->
+
+<!-- Tiny_search End -->
+
+  </body>
+ </html>
+

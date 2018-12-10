@@ -1,0 +1,648 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>  
+  <meta charset="UTF-8">
+  
+    <title>Stack Cookie运行原理 | DbgTech</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Andy Guo">
+    
+
+    
+    <meta name="description" content="在漏洞中，有一个最基本的漏洞形成原因就是栈溢出。为了防止程序缓冲区溢出而受到攻击，从VS2005开始的编译器中加入了基于Cookie的安全检查，来检测缓冲区溢出。这一篇来简单说说基于Cookie的安全检查。 我们以VS2008编译出来的Release版本为例看一下基于Cookie的安全检查如何运作。首先给出例子的代码： 1234567891011121314151617181920#include">
+<meta name="keywords" content="Windbg,Stack Cookie">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Stack Cookie运行原理">
+<meta property="og:url" content="https://dbgtech.github.io/2017/05/21/Stack-Cookie.html">
+<meta property="og:site_name" content="DbgTech">
+<meta property="og:description" content="在漏洞中，有一个最基本的漏洞形成原因就是栈溢出。为了防止程序缓冲区溢出而受到攻击，从VS2005开始的编译器中加入了基于Cookie的安全检查，来检测缓冲区溢出。这一篇来简单说说基于Cookie的安全检查。 我们以VS2008编译出来的Release版本为例看一下基于Cookie的安全检查如何运作。首先给出例子的代码： 1234567891011121314151617181920#include">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="https://dbgtech.github.io/img/2017-05-21-Stack-Cookie-DebugStackVarCheck.jpg">
+<meta property="og:updated_time" content="2018-05-19T07:03:13.408Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Stack Cookie运行原理">
+<meta name="twitter:description" content="在漏洞中，有一个最基本的漏洞形成原因就是栈溢出。为了防止程序缓冲区溢出而受到攻击，从VS2005开始的编译器中加入了基于Cookie的安全检查，来检测缓冲区溢出。这一篇来简单说说基于Cookie的安全检查。 我们以VS2008编译出来的Release版本为例看一下基于Cookie的安全检查如何运作。首先给出例子的代码： 1234567891011121314151617181920#include">
+<meta name="twitter:image" content="https://dbgtech.github.io/img/2017-05-21-Stack-Cookie-DebugStackVarCheck.jpg">
+
+    
+    <link rel="alternative" href="/atom.xml" title="DbgTech" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+  <body>
+    <header>
+      
+<div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="DbgTech" title="DbgTech"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="DbgTech">DbgTech</a></h1>
+				<h2 class="blog-motto">—— 慢下来，享受思考的小确幸！</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">Home</a></li>
+					
+						<li><a href="/column">Column</a></li>
+					
+						<li><a href="/archives">Archives</a></li>
+					
+						<li><a href="/about">About</a></li>
+					
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+  
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/05/21/Stack-Cookie.html" title="Stack Cookie运行原理" itemprop="url">Stack Cookie运行原理</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-05-21T03:33:32.000Z" itemprop="datePublished"> 发表于 2017-05-21</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			
+		
+		</div>
+		
+		<p>在漏洞中，有一个最基本的漏洞形成原因就是栈溢出。为了防止程序缓冲区溢出而受到攻击，从VS2005开始的编译器中加入了基于Cookie的安全检查，来检测缓冲区溢出。这一篇来简单说说基于Cookie的安全检查。</p>
+<p>我们以VS2008编译出来的Release版本为例看一下基于Cookie的安全检查如何运作。首先给出例子的代码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">#include &quot;stdafx.h&quot;</span><br><span class="line">#include &lt;Windows.h&gt;</span><br><span class="line"></span><br><span class="line">#pragma optimize(&quot;&quot;, off)</span><br><span class="line"></span><br><span class="line">void StackCookie(LPCTSTR lpszInput)</span><br><span class="line">&#123;</span><br><span class="line">	TCHAR szFstBuffer[3];</span><br><span class="line">	_stprintf(szFstBuffer, _T(&quot;%s\n&quot;), lpszInput);</span><br><span class="line">	OutputDebugString(szFstBuffer);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">#pragma optimize(&quot;&quot;, on)</span><br><span class="line"></span><br><span class="line">int _tmain(int argc, _TCHAR* argv[])</span><br><span class="line">&#123;</span><br><span class="line">	StackCookie(_T(&quot;DB&quot;));</span><br><span class="line">	system(&quot;pause&quot;);</span><br><span class="line">	return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<a id="more"></a>
+<p>代码比较简单，编写了一个StackCookie函数，参数为字符串。函数的作用就是将传参的字符串格式化到一个内部的缓存中，并用OutputDebugString()函数输出出来。很容易理解啦！</p>
+<p>编译一下，Windbg启动程序，打开Disassembly窗口，main函数，StackCookie函数一眼望到头^_^：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line">StackCookie!wmain:</span><br><span class="line">00f21040 68fc20f200      push    offset StackCookie!`string&apos; (00f220fc)         // 00f220fc  44 00 42 00 00 00 00 00-70 61 75 73 65 00 00 00  D.B.....pause...</span><br><span class="line">00f21045 e8b6ffffff      call    StackCookie!StackCookie (00f21000)</span><br><span class="line">00f2104a 680421f200      push    offset StackCookie!`string&apos; (00f22104)</span><br><span class="line">00f2104f ff15a020f200    call    dword ptr [StackCookie!_imp__system (00f220a0)]</span><br><span class="line">00f21055 83c408          add     esp,8</span><br><span class="line">00f21058 33c0            xor     eax,eax</span><br><span class="line">00f2105a c3              ret</span><br><span class="line">StackCookie!__security_check_cookie:</span><br><span class="line">00f2105b 3b0d0030f200    cmp     ecx,dword ptr [StackCookie!__security_cookie (00f23000)]</span><br><span class="line">00f21061 7502            jne     StackCookie!__security_check_cookie+0xa (00f21065)</span><br><span class="line">00f21063 f3c3            rep ret</span><br><span class="line">00f21065 e9ac020000      jmp     StackCookie!__report_gsfailure (00f21316)</span><br><span class="line"></span><br><span class="line">StackCookie!StackCookie:</span><br><span class="line">00f21000 55              push    ebp</span><br><span class="line">00f21001 8bec            mov     ebp,esp</span><br><span class="line">00f21003 83ec0c          sub     esp,0Ch</span><br><span class="line">00f21006 a10030f200      mov     eax,dword ptr [StackCookie!__security_cookie (00f23000)]</span><br><span class="line">00f2100b 33c5            xor     eax,ebp</span><br><span class="line">00f2100d 8945fc          mov     dword ptr [ebp-4],eax</span><br><span class="line">00f21010 8b4508          mov     eax,dword ptr [ebp+8]</span><br><span class="line">00f21013 50              push    eax</span><br><span class="line">00f21014 68f420f200      push    offset StackCookie!`string&apos; (00f220f4)</span><br><span class="line">00f21019 8d4df4          lea     ecx,[ebp-0Ch]</span><br><span class="line">00f2101c 51              push    ecx</span><br><span class="line">00f2101d ff15a420f200    call    dword ptr [StackCookie!_imp___swprintf (00f220a4)]</span><br><span class="line">00f21023 83c40c          add     esp,0Ch</span><br><span class="line">00f21026 8d55f4          lea     edx,[ebp-0Ch]</span><br><span class="line">00f21029 52              push    edx</span><br><span class="line">00f2102a ff150020f200    call    dword ptr [StackCookie!_imp__OutputDebugStringW (00f22000)]</span><br><span class="line">00f21030 8b4dfc          mov     ecx,dword ptr [ebp-4]</span><br><span class="line">00f21033 33cd            xor     ecx,ebp</span><br><span class="line">00f21035 e821000000      call    StackCookie!__security_check_cookie (00f2105b)</span><br><span class="line">00f2103a 8be5            mov     esp,ebp</span><br><span class="line">00f2103c 5d              pop     ebp</span><br><span class="line">00f2103d c3              ret</span><br><span class="line">00f2103e cc              int     3</span><br><span class="line">00f2103f cc              int     3</span><br></pre></td></tr></table></figure>
+<p>从wmain()函数说起，程序默认是UNICODE的，所以程序中int _tmain(int argc, _TCHAR* argv[])被编译成了 wmain()方法（Oh My god，哪来那么多西红柿……）。那么多废话，赶紧说正题……</p>
+<p>尽管无关紧要，看到了还是想说一下。好久之前用Windbg调试例子程序，一直在执行bp xxxx!main，总提示未落实的断点。鼓捣了好半天，发现_tmain被编译为了wmain，bp *!main能找到才怪。开始用Windbg，那也是一大把辛酸泪啊！</p>
+<p>说正题！！！<br>程序首先压入了字符串参数L”DB”的指针，如汇编后的内存显示所示。然后调用了StackCookie函数，进入下面的函数中。非常规整的函数的前序，将ebp压栈，esp值放到ebp中，后面sub esp 0Ch。显然这个修改堆栈行为是为该函数的局部变量分配了栈空间。至于为啥是12个字节，见后面补充内容。注意了，这里分配了栈空间，但是栈空间的内容是随机的内容（并没有显示的初始化逻辑）。</p>
+<p>接下来就是Cookie了，将程序的全局变量 __security_cookie值放入eax，然后将eax与ebp做了异或，接着就将eax值放入到了 ebp-4的位置。我们对这几个动作以及涉及内容一一作出说明。</p>
+<p>先说__security_cookie这个全局变量，在前面有一篇研究CRT库初始化的笔记，里面说到了security cookie的初始化，其实最终计算完的数值就被保存到了这个全局变量中，用于基于Cookie的溢出检测功能中的。为了计算这个值且保证随机与唯一，可谓用值广泛；具体的内容可以参考之前的文章内容。尽管这样，为了使得Cookie在每一个函数调用中保持唯一性，就又将上述的值和ebp做了异或。</p>
+<p>这么一来，一方面保证最终计算到的Cookie值在函数调用中唯一性。同时在之后检验时，可以保证ebp值也没有被篡改。再说Cookie被保存的位置 ebp-4，它位于前一个栈帧基址保存位置之后的四个字节。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">|---------|     // 低地址</span><br><span class="line">| Cookie  |</span><br><span class="line">|---------|</span><br><span class="line">| LastEBP |</span><br><span class="line">|---------|</span><br><span class="line">| RetAddr |</span><br><span class="line">|---------|</span><br><span class="line">| Params  |</span><br><span class="line">| ......  |</span><br><span class="line">|         |     // 高地址</span><br></pre></td></tr></table></figure>
+<p>下面看一下Cookie在栈中的位置，在如下的位置放一个断点：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">00f21010 8b4508          mov     eax,dword ptr [ebp+8]</span><br></pre></td></tr></table></figure>
+<p>F5运行到此地之后，我们来看一下栈空间内容，如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; dds esp</span><br><span class="line">0036f950  00f23020 StackCookie!argv     // 随机值</span><br><span class="line">0036f954  00f2301c StackCookie!envp     // 随机值</span><br><span class="line">0036f958  e71b0746                      // Cookie</span><br><span class="line">0036f95c  0036f9a8                      // 上一个栈帧的栈基址</span><br><span class="line">0036f960  00f2104a StackCookie!wmain+0xa // StackCookie!StackCookie()函数调用的返回地址</span><br><span class="line">0036f964  00f220fc StackCookie!`string&apos;  // 字符串参数</span><br><span class="line">0036f968  00f211c4 StackCookie!__tmainCRTStartup+0x10f [f:\dd\vctools\crt_bld\self_x86\crt\src\crtexe.c @ 583]</span><br><span class="line">0036f96c  00000001</span><br><span class="line">0036f970  00233d48</span><br><span class="line">0036f974  002357d0</span><br><span class="line">0036f978  e71b07b2</span><br><span class="line">0036f97c  00000000</span><br><span class="line">0036f980  00000000</span><br><span class="line">0036f984  7efde000</span><br><span class="line">0036f988  00000000</span><br><span class="line">0036f98c  00000000</span><br><span class="line">0036f990  0036f978</span><br><span class="line">0036f994  bf6ea15b</span><br><span class="line">0036f998  0036f9e4</span><br><span class="line">0036f99c  00f21735 StackCookie!_except_handler4</span><br><span class="line">0036f9a0  e7dfdfd2</span><br><span class="line">0036f9a4  00000000</span><br><span class="line">0036f9a8  0036f9b4</span><br><span class="line">0036f9ac  754e336a kernel32!BaseThreadInitThunk+0x12</span><br><span class="line">0036f9b0  7efde000</span><br><span class="line">0036f9b4  0036f9f4</span><br><span class="line">0036f9b8  77729902 ntdll!RtlInitializeExceptionChain+0x63</span><br><span class="line">0036f9bc  7efde000</span><br><span class="line">0036f9c0  7700156a</span><br><span class="line">0036f9c4  00000000</span><br><span class="line">0036f9c8  00000000</span><br><span class="line">0036f9cc  7efde000</span><br><span class="line">0:000&gt; r</span><br><span class="line">eax=e71b0746 ebx=00000000 ecx=6f09b6f8 edx=00000000 esi=00000001 edi=00f2337c</span><br><span class="line">eip=00f21010 esp=0036f950 ebp=0036f95c iopl=0         nv up ei ng nz na po nc</span><br><span class="line">cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000282</span><br><span class="line">StackCookie!StackCookie+0x10:</span><br><span class="line">00f21010 8b4508          mov     eax,dword ptr [ebp+8] ss:002b:0036f964=&#123;StackCookie!`string&apos; (00f220fc)&#125;</span><br></pre></td></tr></table></figure>
+<p>从上面的调试内容中，就可以对Cookie校验中的内存布局有一个清晰的了解了。那么继续StackCookie!StackCookie()函数下面的代码。对函数 _stprintf()与OutputDebugString()的调用，我们这里直接略过。下面就到了：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">00f21030 8b4dfc          mov     ecx,dword ptr [ebp-4]</span><br></pre></td></tr></table></figure>
+<p>根据前面的对内存布局的分析，ebp-4 位置显然就是保存的Cookie了。紧接着将它与EBP做了异或，这么一来，ecx中保存的就应该是全局变量__security_cookie中的值了。下面紧接着就调用了一个函数：__security_check_cookie()。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">00f21035 e821000000      call    StackCookie!__security_check_cookie (00f2105b)</span><br></pre></td></tr></table></figure>
+<p>看这个函数，就发现它和__security_cookie 全局变量长得极其相似，基本可以断定是由CRT库提供的。我们先看一下这个函数干了点啥（见上面完整的汇编代码）。非常简单，将ecx值与__security_cookie值做了对比，如果相等直接返回。如果不等，那么跳转到__report_gsfailure()函数。既然是CRT库中的代码，那就好办了，上源码！！！</p>
+<p>先从CRT代码库源码中找到__security_check_cookie()函数，它位于 *\Microsoft Visual Studio 9.0\VC\crt\src\intel\secchk.c，源代码如下所示：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">/***</span><br><span class="line">*__security_check_cookie(cookie) - check for buffer overrun</span><br><span class="line">*</span><br><span class="line">*Purpose:</span><br><span class="line">*       Compiler helper.  Check if a local copy of the security cookie still</span><br><span class="line">*       matches the global value.  If not, then report the fatal error.</span><br><span class="line">*</span><br><span class="line">*       The actual reporting is done by __report_gsfailure</span><br><span class="line">*       since the cookie check routine must be minimal code that preserves</span><br><span class="line">*       any registers used in returning the callee&apos;s result.</span><br><span class="line">*</span><br><span class="line">*Entry:</span><br><span class="line">*       UINT_PTR cookie - local security cookie to check</span><br><span class="line">*</span><br><span class="line">*Exit:</span><br><span class="line">*       Returns immediately if the local cookie matches the global version.</span><br><span class="line">*       Otherwise, calls the failure reporting handler and exits.</span><br><span class="line">*</span><br><span class="line">*Exceptions:</span><br><span class="line">*</span><br><span class="line">*******************************************************************************/</span><br><span class="line"></span><br><span class="line">void __declspec(naked) __fastcall __security_check_cookie(UINT_PTR cookie)</span><br><span class="line">&#123;</span><br><span class="line">    /* x86 version written in asm to preserve all regs */</span><br><span class="line">    __asm &#123;</span><br><span class="line">        cmp ecx, __security_cookie</span><br><span class="line">        jne failure</span><br><span class="line">        rep ret /* REP to avoid AMD branch prediction penalty */</span><br><span class="line">failure:</span><br><span class="line">        jmp __report_gsfailure</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>代码就是用汇编编写的，和我们上面从exe的反汇编代码中看到的一模一样。直接进入__report_gsfailure()函数中。该函数位于文件 *\Microsoft Visual Studio 9.0\VC\crt\src\gs_report.c中。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br><span class="line">163</span><br><span class="line">164</span><br><span class="line">165</span><br><span class="line">166</span><br><span class="line">167</span><br><span class="line">168</span><br><span class="line">169</span><br><span class="line">170</span><br><span class="line">171</span><br><span class="line">172</span><br><span class="line">173</span><br><span class="line">174</span><br><span class="line">175</span><br><span class="line">176</span><br><span class="line">177</span><br><span class="line">178</span><br><span class="line">179</span><br><span class="line">180</span><br><span class="line">181</span><br><span class="line">182</span><br><span class="line">183</span><br><span class="line">184</span><br><span class="line">185</span><br><span class="line">186</span><br><span class="line">187</span><br><span class="line">188</span><br></pre></td><td class="code"><pre><span class="line">#pragma optimize(&quot;&quot;, off)   /* force an EBP frame on x86, no stack packing */</span><br><span class="line"></span><br><span class="line">#if defined (_X86_)</span><br><span class="line">__declspec(noreturn) void __cdecl __report_gsfailure(void)</span><br><span class="line">#else  /* defined (_X86_) */</span><br><span class="line">__declspec(noreturn) void __cdecl __report_gsfailure(ULONGLONG StackCookie)</span><br><span class="line">#endif  /* defined (_X86_) */</span><br><span class="line">&#123;</span><br><span class="line">    volatile UINT_PTR cookie[2];</span><br><span class="line"></span><br><span class="line">    /*</span><br><span class="line">     * Set up a fake exception, and report it via UnhandledExceptionFilter.</span><br><span class="line">     * We can&apos;t raise a true exception because the stack (and therefore</span><br><span class="line">     * exception handling) can&apos;t be trusted after a buffer overrun.  The</span><br><span class="line">     * exception should appear as if it originated after the call to</span><br><span class="line">     * __security_check_cookie, so it is attributed to the function where the</span><br><span class="line">     * buffer overrun was detected.</span><br><span class="line">     */</span><br><span class="line"></span><br><span class="line">#if defined (_X86_)</span><br><span class="line">    /*</span><br><span class="line">     * On x86, we reserve some extra stack which won&apos;t be used.  That is to</span><br><span class="line">     * preserve as much of the call frame as possible when the function with</span><br><span class="line">     * the buffer overrun entered __security_check_cookie with a JMP instead of</span><br><span class="line">     * a CALL, after the calling frame has been released in the epilogue of</span><br><span class="line">     * that function.</span><br><span class="line">     */</span><br><span class="line"></span><br><span class="line">    volatile ULONG dw[(sizeof(CONTEXT) + sizeof(EXCEPTION_RECORD))/sizeof(ULONG)];</span><br><span class="line"></span><br><span class="line">    /*</span><br><span class="line">     * Save the state in the context record immediately.  Hopefully, since</span><br><span class="line">     * opts are disabled, this will happen without modifying ECX, which has</span><br><span class="line">     * the local cookie which failed the check.</span><br><span class="line">     */</span><br><span class="line"></span><br><span class="line">    __asm &#123;</span><br><span class="line">        mov dword ptr [GS_ContextRecord.Eax], eax</span><br><span class="line">        mov dword ptr [GS_ContextRecord.Ecx], ecx</span><br><span class="line">        mov dword ptr [GS_ContextRecord.Edx], edx</span><br><span class="line">        mov dword ptr [GS_ContextRecord.Ebx], ebx</span><br><span class="line">        mov dword ptr [GS_ContextRecord.Esi], esi</span><br><span class="line">        mov dword ptr [GS_ContextRecord.Edi], edi</span><br><span class="line">        mov word ptr [GS_ContextRecord.SegSs], ss</span><br><span class="line">        mov word ptr [GS_ContextRecord.SegCs], cs</span><br><span class="line">        mov word ptr [GS_ContextRecord.SegDs], ds</span><br><span class="line">        mov word ptr [GS_ContextRecord.SegEs], es</span><br><span class="line">        mov word ptr [GS_ContextRecord.SegFs], fs</span><br><span class="line">        mov word ptr [GS_ContextRecord.SegGs], gs</span><br><span class="line">        pushfd</span><br><span class="line">        pop [GS_ContextRecord.EFlags]</span><br><span class="line"></span><br><span class="line">        /*</span><br><span class="line">         * Set the context EBP/EIP/ESP to the values which would be found</span><br><span class="line">         * in the caller to __security_check_cookie.</span><br><span class="line">         */</span><br><span class="line"></span><br><span class="line">        mov eax, [ebp]</span><br><span class="line">        mov dword ptr [GS_ContextRecord.Ebp], eax</span><br><span class="line">        mov eax, [ebp+4]</span><br><span class="line">        mov dword ptr [GS_ContextRecord.Eip], eax</span><br><span class="line">        lea eax, [ebp+8]</span><br><span class="line">        mov dword ptr [GS_ContextRecord.Esp], eax</span><br><span class="line"></span><br><span class="line">        /*</span><br><span class="line">         * Make sure the dummy stack space looks referenced.</span><br><span class="line">         */</span><br><span class="line"></span><br><span class="line">        mov eax, dword ptr dw</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    GS_ContextRecord.ContextFlags = CONTEXT_CONTROL;</span><br><span class="line"></span><br><span class="line">    GS_ExceptionRecord.ExceptionAddress  = (PVOID)(ULONG_PTR)GS_ContextRecord.Eip;</span><br><span class="line"></span><br><span class="line">#elif defined (_AMD64_)</span><br><span class="line">    /*</span><br><span class="line">     * On AMD64/EM64T, __security_check_cookie branched to __report_gsfailure</span><br><span class="line">     * with a JMP, not CALL, so call RtlVirtualUnwind once to get the context</span><br><span class="line">     * of the caller to __security_check_cookie, which is the function with</span><br><span class="line">     * the buffer overrun.</span><br><span class="line">     */</span><br><span class="line"></span><br><span class="line">    ULONG64 ControlPc;</span><br><span class="line">    ULONG64 EstablisherFrame;</span><br><span class="line">    PRUNTIME_FUNCTION FunctionEntry;</span><br><span class="line">    PVOID HandlerData;</span><br><span class="line">    ULONG64 ImageBase;</span><br><span class="line"></span><br><span class="line">    RtlCaptureContext(&amp;GS_ContextRecord);</span><br><span class="line">    ControlPc = GS_ContextRecord.Rip;</span><br><span class="line">    FunctionEntry = RtlLookupFunctionEntry(ControlPc, &amp;ImageBase, NULL);</span><br><span class="line">    if (FunctionEntry != NULL) &#123;</span><br><span class="line">        RtlVirtualUnwind(UNW_FLAG_NHANDLER,</span><br><span class="line">                         ImageBase,</span><br><span class="line">                         ControlPc,</span><br><span class="line">                         FunctionEntry,</span><br><span class="line">                         &amp;GS_ContextRecord,</span><br><span class="line">                         &amp;HandlerData,</span><br><span class="line">                         &amp;EstablisherFrame,</span><br><span class="line">                         NULL);</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">        GS_ContextRecord.Rip = (ULONGLONG) _ReturnAddress();</span><br><span class="line">        GS_ContextRecord.Rsp = (ULONGLONG) _AddressOfReturnAddress()+8;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    GS_ExceptionRecord.ExceptionAddress = (PVOID)GS_ContextRecord.Rip;</span><br><span class="line">    GS_ContextRecord.Rcx = StackCookie;</span><br><span class="line"></span><br><span class="line">#elif defined (_IA64_)</span><br><span class="line">    /*</span><br><span class="line">     * On IA64, __security_check_cookie branched to __report_gsfailure with a</span><br><span class="line">     * true call, so call RtlVirtualUnwind twice to get the context of the</span><br><span class="line">     * caller to __security_check_cookie, which is the function with the</span><br><span class="line">     * buffer overrun.</span><br><span class="line">     */</span><br><span class="line"></span><br><span class="line">    ULONGLONG ControlPc;</span><br><span class="line">    FRAME_POINTERS EstablisherFrame;</span><br><span class="line">    PRUNTIME_FUNCTION FunctionEntry;</span><br><span class="line">    BOOLEAN InFunction;</span><br><span class="line">    ULONGLONG ImageBase;</span><br><span class="line">    ULONGLONG TargetGp;</span><br><span class="line">    int frames;</span><br><span class="line"></span><br><span class="line">    RtlCaptureContext(&amp;GS_ContextRecord);</span><br><span class="line">    ControlPc = GS_ContextRecord.BrRp;</span><br><span class="line"></span><br><span class="line">    for (frames = 0; frames &lt; 2; ++frames)</span><br><span class="line">    &#123;</span><br><span class="line">        FunctionEntry = RtlLookupFunctionEntry(ControlPc, &amp;ImageBase, &amp;TargetGp);</span><br><span class="line">        if (FunctionEntry == NULL)</span><br><span class="line">        &#123;</span><br><span class="line">            break;</span><br><span class="line">        &#125;</span><br><span class="line">        ControlPc = RtlVirtualUnwind(ImageBase,</span><br><span class="line">                                     ControlPc,</span><br><span class="line">                                     FunctionEntry,</span><br><span class="line">                                     &amp;GS_ContextRecord,</span><br><span class="line">                                     &amp;InFunction,</span><br><span class="line">                                     &amp;EstablisherFrame,</span><br><span class="line">                                     NULL);</span><br><span class="line">        PROGRAM_COUNTER_TO_CONTEXT(&amp;GS_ContextRecord, ControlPc);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    GS_ExceptionRecord.ExceptionAddress  = (PVOID)ControlPc;</span><br><span class="line">    GS_ContextRecord.IntV0 = StackCookie;</span><br><span class="line"></span><br><span class="line">#else  /* defined (_IA64_) */</span><br><span class="line">#error Unknown platform!</span><br><span class="line">#endif  /* defined (_IA64_) */</span><br><span class="line"></span><br><span class="line">    GS_ExceptionRecord.ExceptionCode  = STATUS_STACK_BUFFER_OVERRUN;</span><br><span class="line">    GS_ExceptionRecord.ExceptionFlags = EXCEPTION_NONCONTINUABLE;</span><br><span class="line"></span><br><span class="line">    /*</span><br><span class="line">     * Save the global cookie and cookie complement locally - using an array</span><br><span class="line">     * to defeat any potential stack-packing.</span><br><span class="line">     */</span><br><span class="line"></span><br><span class="line">    cookie[0] = __security_cookie;</span><br><span class="line">    cookie[1] = __security_cookie_complement;</span><br><span class="line"></span><br><span class="line">#if defined (_CRTBLD) &amp;&amp; !defined (_SYSCRT)</span><br><span class="line">    DebuggerWasPresent = IsDebuggerPresent();</span><br><span class="line">    _CRT_DEBUGGER_HOOK(_CRT_DEBUGGER_GSFAILURE);</span><br><span class="line">#endif  /* defined (_CRTBLD) &amp;&amp; !defined (_SYSCRT) */</span><br><span class="line"></span><br><span class="line">    /* Make sure any filter already in place is deleted. */</span><br><span class="line">    SetUnhandledExceptionFilter(NULL);</span><br><span class="line"></span><br><span class="line">    UnhandledExceptionFilter((EXCEPTION_POINTERS *)&amp;GS_ExceptionPointers);</span><br><span class="line"></span><br><span class="line">#if defined (_CRTBLD) &amp;&amp; !defined (_SYSCRT)</span><br><span class="line">    /*</span><br><span class="line">     * If we make it back from Watson, then the user may have asked to debug</span><br><span class="line">     * the app.  If we weren’t under a debugger before invoking Watson,</span><br><span class="line">     * re-signal the VS CRT debugger hook, so a newly attached debugger gets</span><br><span class="line">     * a chance to break into the process.</span><br><span class="line">     */</span><br><span class="line">    if (!DebuggerWasPresent)</span><br><span class="line">    &#123;</span><br><span class="line">        _CRT_DEBUGGER_HOOK(_CRT_DEBUGGER_GSFAILURE);</span><br><span class="line">    &#125;</span><br><span class="line">#endif  /* defined (_CRTBLD) &amp;&amp; !defined (_SYSCRT) */</span><br><span class="line"></span><br><span class="line">    TerminateProcess(GetCurrentProcess(), STATUS_STACK_BUFFER_OVERRUN);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>源码逻辑很明确了，首先分配一个数组变量，大小为sizeof(CONTEXT) + sizeof(EXCEPTION_RECORD)，用这块内存保存了环境上下文，以及异常结构体。其实这里就是构造了异常发生时的环境。然后调用SetUnhandledExceptionFilter(NULL)，清除注册的异常处理函数。直接调用UnhandledExceptionFilter()函数。即调用了异常处理流程中最终未处理异常的处置函数（异常的分发过程，会在一篇笔记中有专门记录，这里就不过多分析了）。对于具有调试器调试的程序，UnhandledExceptionFilter()函数调用后会挂起到调试器中，函数不会返回。对于没有调试的程序，并且也没有即时调试器，那么该函数返回后，直接调用了TerminateProcess()，终止了进程。</p>
+<p>到这里呢，关于基于Cookie的安全检测的运作原理就说完了。但是关于这个程序，还想说一点。</p>
+<p>细心的人会注意到，程序中传参为字符串_T(“DB”)，及三个字符长（D，B，结束符）。而在StackCookie()函数中，缓存的大小为3，并且在做字符串格式化时，格式化的字符串为 _T(“%s\n”)，如果将_T(“DB”)格式化到该字符串中，结果应该是四个字符（即D，B，\n，字符串结束符），而保存该字符串的缓存szFstBuffer，它只声明了3个字符的大小。将四个字符复制到3个字符大的空间，那岂不是妥妥地溢出了么？Oh My God，我发现了一处缓存溢出Bug！但是令人匪夷所思的是为何程序还可以完好无损地执行，且顺利结束。挂上了Windbg的即时调试，这货居然也默不作声？难道是程序逻辑分析的有问题？</p>
+<p>其实并不是啦，不是Windbg不够专业，不够敬业，也不是程序不存在缓冲区溢出。其实是编译器满足CPU的一些原则（内存对齐），编译出了一个略微缓存溢出也没有问题的程序。同样地，细心的人儿会注意到上面分析中设置断点的位置，打印出了栈的内容中（参考上面打印的栈内容），没错就是注释中有两个”//随机值”的地方，其实这8个字节就是为szFstBuffer变量分配的内容了（8字节，四个WCHAR字符），本应该是3个WCHAR字符，但是为了满足CPU的内存对齐原则，分配了8个字节。_stprintf()函数调用时，8个字节的内存恰好保存了四个WCHAR字符，不会出现问题。但其实这个地方还是有缓存溢出，只是没有出现问题而已。</p>
+<p>VS2008就问你了，敢不敢把程序编译成Debug版本？我分分钟让你变量校验失败，梆梆打脸！！！见下图</p>
+<div align="center"><br><img src="/img/2017-05-21-Stack-Cookie-DebugStackVarCheck.jpg" alt="栈Cookie校验错误提示"><br></div>
+
+<p>Windbg就问你了，你敢不敢把传参修改为_T(“DBG”)？我分分钟让你的程序挂起啊！敢不敢让我启动程序啊，我非得给你准确指出你已经碾压了Cookie（见下面栈回溯）。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; kv</span><br><span class="line">ChildEBP RetAddr  Args to Child</span><br><span class="line">0012fc14 7c92de7a 7c801e3a ffffffff c0000409 ntdll!KiFastSystemCallRet (FPO: [0,0,0])</span><br><span class="line">0012fc18 7c801e3a ffffffff c0000409 0012ff60 ntdll!NtTerminateProcess+0xc (FPO: [2,0,0])</span><br><span class="line">0012fc28 0040141a ffffffff c0000409 e12e4d3b kernel32!TerminateProcess+0x20 (FPO: [2,0,0])</span><br><span class="line">0012ff60 0040103a 00420044 000a0031 e13c0000 StackCookie!__report_gsfailure+0x104 (FPO: [Non-Fpo]) (CONV: cdecl) [f:\dd\vctools\crt_bld\self_x86\crt\src\gs_report.c @ 320]</span><br><span class="line">0012ff74 0040104a 004020fc 004011c4 00000001 StackCookie!StackCookie+0x3a (CONV: cdecl) [d:\debugworks\stack-cookie\stackcookie\stackcookie\stackcookie.cpp @ 14]</span><br><span class="line">0012ff7c 004011c4 00000001 00392980 00392a18 StackCookie!wmain+0xa (FPO: [2,0,0]) (CONV: cdecl) [d:\debugworks\stack-cookie\stackcookie\stackcookie\stackcookie.cpp @ 21]</span><br><span class="line">0012ffc0 7c81776f 0184f6f2 0184f79a 7ffde000 StackCookie!__tmainCRTStartup+0x10f (FPO: [Non-Fpo]) (CONV: cdecl) [f:\dd\vctools\crt_bld\self_x86\crt\src\crtexe.c @ 583]</span><br><span class="line">0012fff0 00000000 0040130c 00000000 78746341 kernel32!BaseProcessStart+0x23 (FPO: [Non-Fpo])</span><br></pre></td></tr></table></figure>
+<p><strong> 参考文献 </strong></p>
+<ol>
+<li>《软件调试》 张银奎著</li>
+<li>VS2008 CRT源代码</li>
+</ol>
+<p><strong> 修订历史 </strong></p>
+<ul>
+<li>2017-05-21 12:27:32    完成博文</li>
+</ul>
+<p>By Andy @2017-05-21 12:27:32</p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Windbg/">Windbg</a><a href="/tags/Stack-Cookie/">Stack Cookie</a>
+  </div>
+
+</div>
+
+
+
+	<div class="article-share" id="share">
+	
+	  <div data-url="https://dbgtech.github.io/2017/05/21/Stack-Cookie.html" data-title="Stack Cookie运行原理 | DbgTech" data-tsina="" class="share clearfix">
+	  </div>
+	
+	</div>
+
+
+</footer>
+
+   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+ <div class="prev" >
+ <a href="/2017/06/14/Win32-SEH-Internals.html" title="【转载】Windows异常处理">
+  <strong>上一篇：</strong><br/>
+  <span>
+  【转载】Windows异常处理</span>
+</a>
+</div>
+
+
+<div class="next">
+<a href="/2017/05/21/Windows-Exception-Dispatch.html"  title="Windows异常分发">
+ <strong>下一篇：</strong><br/> 
+ <span>Windows异常分发
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ 
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  <div class="linkslist">
+  <p class="asidetitle">专栏</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://dbgtech.github.io/Tools/" target="_blank" title="常用工具">常用工具</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+		  
+			<li><a href="/categories/散记/" title="散记">散记<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/笔记/" title="笔记">笔记<sup>6</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/读书/" title="读书">读书<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/调试/" title="调试">调试<sup>8</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/转载/" title="转载">转载<sup>1</sup></a></li>
+		  
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			
+				<li><a href="/tags/Windbg/" title="Windbg">Windbg<sup>5</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Exception/" title="Exception">Exception<sup>4</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Windows/" title="Windows">Windows<sup>3</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/心情/" title="心情">心情<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/X86汇编/" title="X86汇编">X86汇编<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Markdown/" title="Markdown">Markdown<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Stack-Cookie/" title="Stack Cookie">Stack Cookie<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/time/" title="time">time<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C/C++">C/C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Win10/" title="Win10">Win10<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/UWP/" title="UWP">UWP<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/读书笔记/" title="读书笔记">读书笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C\C++">C\C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/反思/" title="反思">反思<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/实模式/" title="实模式">实模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/保护模式/" title="保护模式">保护模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/运行时库/" title="运行时库">运行时库<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/WSL/" title="WSL">WSL<sup>1</sup></a></li>
+			
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://git-scm.com/book/zh/v2" target="_blank" title="Git">Git</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://hexo.io/zh-cn/docs/" target="_blank" title="Hexo">Hexo</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://36kr.com/" target="_blank" title="36氪">36氪</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://wiki.osdev.org/Expanded_Main_Page" target="_blank" title="OSDev">OSDev</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.reactos.com/" target="_blank" title="ReactOS">ReactOS</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.freebuf.com/" target="_blank" title="FreeBuf">FreeBuf</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.appinn.com/markdown/" target="_blank" title="Makedown">Makedown</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://www.huxiu.com/" target="_blank" title="虎嗅网">虎嗅网</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://bbs.pediy.com/" target="_blank" title="看雪论坛">看雪论坛</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.geekpark.net/" target="_blank" title="极客公园">极客公园</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  
+  <div class="archiveslist">
+    <p class="asidetitle"><a href="/archives">归档</a></p>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/12/">十二月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/11/">十一月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/01/">一月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/12/">十二月 2016</a><span class="archive-list-count">1</span></li></ul>
+  </div>
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+		<p class="copyright">
+		Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Jacman">Jacman</a> © 2018 
+		
+		<a href="/about" target="_blank" title="Andy Guo">Andy Guo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+<script src="/js/jquery.qrcode-0.12.0.min.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+  
+        getSize();
+        if (myWidth >= 1024) {
+          c.click();
+        }
+  
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else{
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  c.click(function(){
+    ta.css('display', 'block').addClass('fadeIn');
+  });
+  o.click(function(){
+    ta.css('display', 'none');
+  });
+  $(window).scroll(function(){
+    ta.css("top",Math.max(140,320-$(this).scrollTop()));
+  });
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<div class="hoverqrcode clearfix"></div>',
+  '<a class="overlay" id="qrcode"></a>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="微信"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="微博"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+
+  $('.hoverqrcode').hide();
+
+  var myWidth = 0;
+  function updatehoverqrcode(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+    var qrsize = myWidth > 1024 ? 200:100;
+    var options = {render: 'image', size: qrsize, fill: '#2ca6cb', text: url, radius: 0.5, quiet: 1};
+    var p = $('.article-share-qrcode').position();
+    $('.hoverqrcode').empty().css('width', qrsize).css('height', qrsize)
+                          .css('left', p.left-qrsize/2+20).css('top', p.top-qrsize-10)
+                          .qrcode(options);
+  };
+  $(window).resize(function(){
+    $('.hoverqrcode').hide();
+  });
+  $('.article-share-qrcode').click(function(){
+    updatehoverqrcode();
+    $('.hoverqrcode').toggle();
+  });
+  $('.article-share-qrcode').hover(function(){}, function(){
+      $('.hoverqrcode').hide();
+  });
+});   
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+<!-- Analytics Begin -->
+
+
+
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "//hm.baidu.com/hm.js?e6d1f421bbc9962127a50488f9ed37d1";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+
+
+
+<!-- Analytics End -->
+
+<!-- Totop Begin -->
+
+	<div id="totop">
+	<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+	</div>
+	<script src="/js/totop.js"></script>
+
+<!-- Totop End -->
+
+<!-- MathJax Begin -->
+<!-- mathjax config similar to math.stackexchange -->
+
+
+<!-- MathJax End -->
+
+<!-- Tiny_search Begin -->
+
+<!-- Tiny_search End -->
+
+  </body>
+</html>
+

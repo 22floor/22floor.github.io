@@ -1,0 +1,620 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>  
+  <meta charset="UTF-8">
+  
+    <title>Windbg的!error命令输出 Unable to get error code text | DbgTech</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Andy Guo">
+    
+
+    
+    <meta name="description" content="对于经常用Windbg调试的人来说，系统函数调用失败，通常会用!gle来看一下GetLastError（）函数返回了什么内容呢？但是这个函数返回的是一个错误码，例如0x00000005，这玩意可是人无法直接识别的（当然了0x00000005这个码倒是可以直接识别，拒绝访问嘛，但不是所有的错误码都能记住的。）。当然了Windbg还是比较人性化的，它立马提供了一个扩展命令，即!error。这个命令可以">
+<meta name="keywords" content="Windbg">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Windbg的!error命令输出 Unable to get error code text">
+<meta property="og:url" content="https://dbgtech.github.io/2017/04/12/Windbg-error-outputerror.html">
+<meta property="og:site_name" content="DbgTech">
+<meta property="og:description" content="对于经常用Windbg调试的人来说，系统函数调用失败，通常会用!gle来看一下GetLastError（）函数返回了什么内容呢？但是这个函数返回的是一个错误码，例如0x00000005，这玩意可是人无法直接识别的（当然了0x00000005这个码倒是可以直接识别，拒绝访问嘛，但不是所有的错误码都能记住的。）。当然了Windbg还是比较人性化的，它立马提供了一个扩展命令，即!error。这个命令可以">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="https://dbgtech.github.io/img/2017-04-12-windbg-error-outputinfo.jpg">
+<meta property="og:updated_time" content="2018-05-19T07:03:13.406Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Windbg的!error命令输出 Unable to get error code text">
+<meta name="twitter:description" content="对于经常用Windbg调试的人来说，系统函数调用失败，通常会用!gle来看一下GetLastError（）函数返回了什么内容呢？但是这个函数返回的是一个错误码，例如0x00000005，这玩意可是人无法直接识别的（当然了0x00000005这个码倒是可以直接识别，拒绝访问嘛，但不是所有的错误码都能记住的。）。当然了Windbg还是比较人性化的，它立马提供了一个扩展命令，即!error。这个命令可以">
+<meta name="twitter:image" content="https://dbgtech.github.io/img/2017-04-12-windbg-error-outputinfo.jpg">
+
+    
+    <link rel="alternative" href="/atom.xml" title="DbgTech" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+  <body>
+    <header>
+      
+<div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="DbgTech" title="DbgTech"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="DbgTech">DbgTech</a></h1>
+				<h2 class="blog-motto">—— 慢下来，享受思考的小确幸！</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">Home</a></li>
+					
+						<li><a href="/column">Column</a></li>
+					
+						<li><a href="/archives">Archives</a></li>
+					
+						<li><a href="/about">About</a></li>
+					
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+  
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/04/12/Windbg-error-outputerror.html" title="Windbg的!error命令输出 Unable to get error code text" itemprop="url">Windbg的!error命令输出 Unable to get error code text</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-04-12T03:33:32.000Z" itemprop="datePublished"> 发表于 2017-04-12</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			
+		
+		</div>
+		
+		<p>对于经常用Windbg调试的人来说，系统函数调用失败，通常会用!gle来看一下GetLastError（）函数返回了什么内容呢？但是这个函数返回的是一个错误码，例如0x00000005，这玩意可是人无法直接识别的（当然了0x00000005这个码倒是可以直接识别，拒绝访问嘛，但不是所有的错误码都能记住的。）。当然了Windbg还是比较人性化的，它立马提供了一个扩展命令，即!error。这个命令可以将错误码转换成“人话”，但是尝试无数次，并且是在换了无数个Windbg版本后尝试了无数次，它的结果始终不变，如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">0:089&gt; !error 0x5</span><br><span class="line">Error code: (Win32) 0x5 (5) - &lt;Unable to get error code text&gt;</span><br></pre></td></tr></table></figure>
+<p>后面尖括号中的内容是“人话”，意思就是无法获取到错误的文本。换个说法就是!error命令执行有问题，到底有啥问题，它没告诉你！每次看到这段文本就有“一刀捅死”Windbg的冲动。冲动归冲动，还是拿它没办法。好吧，那咱们自己找一下问题根源吧。</p>
+<p>!error 命令存在于ext.dll模块中，执行该命令时即调用 ext!error() 函数，调用栈如下所示：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">0:001&gt; kv</span><br><span class="line"> # ChildEBP RetAddr  Args to Child</span><br><span class="line">00 01f3d8e0 616ca9c7 01f3d904 01f3d900 00000005 ext!FormatAnyStatus+0x1d6 (FPO: [Non-Fpo])</span><br><span class="line">01 01f3d908 616caa87 0059bfe8 00000000 00569ec0 ext!DecodeErrorForMessage+0x23 (FPO: [Non-Fpo])</span><br><span class="line">02 01f3da7c 616cab2b 00000000 616caae0 00569ec0 ext!DecodeError+0x36 (FPO: [Non-Fpo])</span><br><span class="line">03 01f3da98 59d06dd9 00569ec4 01f3db6f 76c9bc84 ext!error+0x4b (FPO: [2,3,4])</span><br><span class="line">04 01f3db14 59d06f8c 00569ec0 01f3dd3c 01f3dc88 dbgeng!ExtensionInfo::CallA+0x255 (FPO: [Non-Fpo])</span><br><span class="line">05 01f3dcb8 59d07024 00569ec0 01f3dd3c 01f3dd48 dbgeng!ExtensionInfo::Call+0xfb (FPO: [Non-Fpo])</span><br><span class="line">06 01f3dce4 59d059ed 01f3dd3c 01f3dd48 00000000 dbgeng!ExtensionInfo::CallAny+0x6c (FPO: [Non-Fpo])</span><br><span class="line">07 01f3e150 59d3ec70 00000000 00000000 00000000 dbgeng!ParseBangCmd+0x46f (FPO: [Non-Fpo])</span><br><span class="line">08 01f3e1cc 59d3faaf 76c985bc 00569ec0 00000001 dbgeng!ProcessCommands+0x816 (FPO: [0,25,4])</span><br><span class="line">09 01f3e22c 59c8e40f 00000000 76c98104 00000000 dbgeng!ProcessCommandsAndCatch+0xad (FPO: [Non-Fpo])</span><br><span class="line">0a 01f3e694 59c8e5e8 0000000a 00000000 76c98148 dbgeng!Execute+0x247 (FPO: [Non-Fpo])</span><br><span class="line">0b 01f3e6d8 002f4bd7 00569ec8 00000001 01f3eab8 dbgeng!DebugClient::ExecuteWide+0x68 (FPO: [Non-Fpo])</span><br><span class="line">0c 01f3ea94 002f5068 00000006 00000008 00000000 windbg!ProcessCommand+0x12f (FPO: [Non-Fpo])</span><br><span class="line">0d 01f3fab0 002f72d1 761fbfe9 00000000 00000000 windbg!ProcessEngineCommands+0xd0 (FPO: [0,1023,4])</span><br><span class="line">0e 01f3faec 74fd336a 00000000 01f3fb38 76ff9902 windbg!EngineLoop+0x571 (FPO: [Non-Fpo])</span><br><span class="line">0f 01f3faf8 76ff9902 00000000 76f56898 00000000 kernel32!BaseThreadInitThunk+0xe (FPO: [Non-Fpo])</span><br><span class="line">10 01f3fb38 76ff98d5 002f6d60 00000000 00000000 ntdll!__RtlUserThreadStart+0x70 (FPO: [Non-Fpo])</span><br><span class="line">11 01f3fb50 00000000 002f6d60 00000000 00000000 ntdll!_RtlUserThreadStart+0x1b (FPO: [Non-Fpo])</span><br></pre></td></tr></table></figure>
+<p>从上述的调用栈，可以看到Windbg执行扩展命令的过程。dbgeng!ExtensionInfo类用于处理扩展命令，并调用对应的扩展模块。栈中可以看到对 ext!error()函数的调用。其后依次解析错误，将错误转换成可读字符串，最终调用到FormatAnyStatus()，它的作用就是将错误码转换成对应字符串。当然出现问题的也是它了。<br>Windbg调试虽然强大，但是一堆汇编，想要了解函数的大致流程，用它就费劲了。那么该是其他工具出场的时候了，IDA Pro，大名鼎鼎的反汇编工具。反汇编之后，找到FormatAnyStatus()函数，很快就找到了问题根源。结合IDA F5的结果，以及调试过程，确定了出问题的代码在该函数后半截，所以给出FormatAnyStatus() 的后半截函数，如下:<br><a id="more"></a><br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">CHAR *FormatAnyStatus(unsigned int a1@&lt;ecx&gt;, __int32 a2, void *a3, int *a4, char **a5)</span><br><span class="line">&#123;</span><br><span class="line"></span><br><span class="line">    ......</span><br><span class="line"></span><br><span class="line">    v12 = FormatMessageA(v16 | 0x200, v11, v6, 0, v7, 0x400u, 0);</span><br><span class="line">LABEL_34:</span><br><span class="line">    if ( v11 &amp;&amp; v15 )</span><br><span class="line">        FreeLibrary(v11);</span><br><span class="line">    if ( !v12 )</span><br><span class="line">        goto LABEL_48;</span><br><span class="line">    for ( i = v7; *i; ++i )</span><br><span class="line">    &#123;</span><br><span class="line">        if ( !_isprint((unsigned __int8)*i) )</span><br><span class="line">            *i = 0x20;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    do</span><br><span class="line">    &#123;</span><br><span class="line">        if ( !_isspace((unsigned __int8)v7[v12 - 1]) )</span><br><span class="line">            break;</span><br><span class="line">        v7[--v12] = 0;</span><br><span class="line">    &#125;</span><br><span class="line">    while ( v12 );</span><br><span class="line"></span><br><span class="line">    result = v7;</span><br><span class="line">    if ( !v12 )</span><br><span class="line">LABEL_48:</span><br><span class="line">        result = &quot;&lt;Unable to get error code text&gt;&quot;;</span><br><span class="line">    return result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>对于实验命令 !error 0x5，0x5对应的错误信息为 Win32 - “拒绝访问。”，在上述函数中调用 FormatMessageA()后确实返回了字符串”拒绝访问。”，如下图所示调试结果。但是由于后面的代码中会判断字符串是否是可打印的，即调用_isprint()函数，它的返回一直为0，所有的字符都被修改为了 0x20，即空格。再之后的代码do{}while()则将空格替换成结束符’\0’中。将缓存中所有的空格替换成了0，并且长度也减为0了，最终由于没有返回”有效内容”，返回字符串被赋值为 “ &lt; Unable to get error code text &gt; ”。</p>
+<div aligin="center"><br><img src="/img/2017-04-12-windbg-error-outputinfo.jpg" alt="函数调用"><br></div>
+
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">0:003&gt; r</span><br><span class="line">eax=0000000c ebx=00000000 ecx=773d2fdd edx=00357014 esi=00000005 edi=57c57078</span><br><span class="line">eip=57b8ef54 esp=026dd820 ebp=026dd840 iopl=0         nv up ei pl zr na pe nc</span><br><span class="line">cs=0023  ss=002b  ds=002b  es=002b  fs=0053  gs=002b             efl=00000246</span><br><span class="line">ext!FormatAnyStatus+0x1ae:</span><br><span class="line">57b8ef54 8bf0            mov     esi,eax</span><br><span class="line">0:003&gt; db 57c57078 </span><br><span class="line">57c57078  be dc be f8 b7 c3 ce ca-a1 a3 0d 0a 00 00 00 00  ................</span><br><span class="line">57c57088  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00  ................</span><br><span class="line">57c57098  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00  ................</span><br><span class="line">57c570a8  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00  ................</span><br><span class="line">57c570b8  00 00 00 00 00 00 00 00-00 00 00 00 00 00 00 00  ................</span><br></pre></td></tr></table></figure>
+<p>结果的结果，就出现了Windbg中看到的结果。正如文章开始处所显示的!error 0x5的内容。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">0:089&gt; !error 0x5</span><br><span class="line">Error code: (Win32) 0x5 (5) - &lt;Unable to get error code text&gt;</span><br></pre></td></tr></table></figure>
+<p>从网上查了一下，说是和语言环境有关，从上述的调试结果，也可知和语言相关。通过Windbg的.locale命令设置了语言环境，结果依旧。暂时也没有解决办法了。还是老实从网上下载一个ErrorLookup程序吧，或者换到English版本的操作系统？或者是下载一个英语语言包？不折腾了，晓得原因即可。</p>
+<p><strong>修订历史</strong></p>
+<ul>
+<li>2017-04-12 12:30:17        完成文章</li>
+</ul>
+<p>By Andy @ 2017/04/12 12:30:17</p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Windbg/">Windbg</a>
+  </div>
+
+</div>
+
+
+
+	<div class="article-share" id="share">
+	
+	  <div data-url="https://dbgtech.github.io/2017/04/12/Windbg-error-outputerror.html" data-title="Windbg的!error命令输出 Unable to get error code text | DbgTech" data-tsina="" class="share clearfix">
+	  </div>
+	
+	</div>
+
+
+</footer>
+
+   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+ <div class="prev" >
+ <a href="/2017/05/17/C-runtime-library-analysis.html" title="C\C++运行时库源代码阅读">
+  <strong>上一篇：</strong><br/>
+  <span>
+  C\C++运行时库源代码阅读</span>
+</a>
+</div>
+
+
+<div class="next">
+<a href="/2017/01/02/2017-new-year-open.html"  title="新年开端">
+ <strong>下一篇：</strong><br/> 
+ <span>新年开端
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ 
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  <div class="linkslist">
+  <p class="asidetitle">专栏</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://dbgtech.github.io/Tools/" target="_blank" title="常用工具">常用工具</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+		  
+			<li><a href="/categories/散记/" title="散记">散记<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/笔记/" title="笔记">笔记<sup>6</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/读书/" title="读书">读书<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/调试/" title="调试">调试<sup>8</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/转载/" title="转载">转载<sup>1</sup></a></li>
+		  
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			
+				<li><a href="/tags/Windbg/" title="Windbg">Windbg<sup>5</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Exception/" title="Exception">Exception<sup>4</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Windows/" title="Windows">Windows<sup>3</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/心情/" title="心情">心情<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/X86汇编/" title="X86汇编">X86汇编<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Markdown/" title="Markdown">Markdown<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Stack-Cookie/" title="Stack Cookie">Stack Cookie<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/time/" title="time">time<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C/C++">C/C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Win10/" title="Win10">Win10<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/UWP/" title="UWP">UWP<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/读书笔记/" title="读书笔记">读书笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C\C++">C\C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/反思/" title="反思">反思<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/实模式/" title="实模式">实模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/保护模式/" title="保护模式">保护模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/运行时库/" title="运行时库">运行时库<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/WSL/" title="WSL">WSL<sup>1</sup></a></li>
+			
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://git-scm.com/book/zh/v2" target="_blank" title="Git">Git</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://hexo.io/zh-cn/docs/" target="_blank" title="Hexo">Hexo</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://36kr.com/" target="_blank" title="36氪">36氪</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://wiki.osdev.org/Expanded_Main_Page" target="_blank" title="OSDev">OSDev</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.reactos.com/" target="_blank" title="ReactOS">ReactOS</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.freebuf.com/" target="_blank" title="FreeBuf">FreeBuf</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.appinn.com/markdown/" target="_blank" title="Makedown">Makedown</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://www.huxiu.com/" target="_blank" title="虎嗅网">虎嗅网</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://bbs.pediy.com/" target="_blank" title="看雪论坛">看雪论坛</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.geekpark.net/" target="_blank" title="极客公园">极客公园</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  
+  <div class="archiveslist">
+    <p class="asidetitle"><a href="/archives">归档</a></p>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/12/">十二月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/11/">十一月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/01/">一月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/12/">十二月 2016</a><span class="archive-list-count">1</span></li></ul>
+  </div>
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+		<p class="copyright">
+		Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Jacman">Jacman</a> © 2018 
+		
+		<a href="/about" target="_blank" title="Andy Guo">Andy Guo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+<script src="/js/jquery.qrcode-0.12.0.min.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+  
+        getSize();
+        if (myWidth >= 1024) {
+          c.click();
+        }
+  
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else{
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  c.click(function(){
+    ta.css('display', 'block').addClass('fadeIn');
+  });
+  o.click(function(){
+    ta.css('display', 'none');
+  });
+  $(window).scroll(function(){
+    ta.css("top",Math.max(140,320-$(this).scrollTop()));
+  });
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<div class="hoverqrcode clearfix"></div>',
+  '<a class="overlay" id="qrcode"></a>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="微信"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="微博"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+
+  $('.hoverqrcode').hide();
+
+  var myWidth = 0;
+  function updatehoverqrcode(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+    var qrsize = myWidth > 1024 ? 200:100;
+    var options = {render: 'image', size: qrsize, fill: '#2ca6cb', text: url, radius: 0.5, quiet: 1};
+    var p = $('.article-share-qrcode').position();
+    $('.hoverqrcode').empty().css('width', qrsize).css('height', qrsize)
+                          .css('left', p.left-qrsize/2+20).css('top', p.top-qrsize-10)
+                          .qrcode(options);
+  };
+  $(window).resize(function(){
+    $('.hoverqrcode').hide();
+  });
+  $('.article-share-qrcode').click(function(){
+    updatehoverqrcode();
+    $('.hoverqrcode').toggle();
+  });
+  $('.article-share-qrcode').hover(function(){}, function(){
+      $('.hoverqrcode').hide();
+  });
+});   
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+<!-- Analytics Begin -->
+
+
+
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "//hm.baidu.com/hm.js?e6d1f421bbc9962127a50488f9ed37d1";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+
+
+
+<!-- Analytics End -->
+
+<!-- Totop Begin -->
+
+	<div id="totop">
+	<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+	</div>
+	<script src="/js/totop.js"></script>
+
+<!-- Totop End -->
+
+<!-- MathJax Begin -->
+<!-- mathjax config similar to math.stackexchange -->
+
+
+<!-- MathJax End -->
+
+<!-- Tiny_search Begin -->
+
+<!-- Tiny_search End -->
+
+  </body>
+</html>
+

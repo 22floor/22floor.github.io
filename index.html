@@ -1,0 +1,1089 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>  
+  <meta charset="UTF-8">
+  
+    <title>DbgTech</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Andy Guo">
+    
+
+    
+    <meta name="description" content="记录工作，生活，学习的点点滴滴。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="DbgTech">
+<meta property="og:url" content="https://dbgtech.github.io/index.html">
+<meta property="og:site_name" content="DbgTech">
+<meta property="og:description" content="记录工作，生活，学习的点点滴滴。">
+<meta property="og:locale" content="zh-CN">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="DbgTech">
+<meta name="twitter:description" content="记录工作，生活，学习的点点滴滴。">
+
+    
+    <link rel="alternative" href="/atom.xml" title="DbgTech" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+  <body>
+    <header>
+      
+<div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="DbgTech" title="DbgTech"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="DbgTech">DbgTech</a></h1>
+				<h2 class="blog-motto">—— 慢下来，享受思考的小确幸！</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">Home</a></li>
+					
+						<li><a href="/column">Column</a></li>
+					
+						<li><a href="/archives">Archives</a></li>
+					
+						<li><a href="/about">About</a></li>
+					
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main">
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2018/12/09/Ubuntu-Debugging-Program-Crash.html" title="Ubuntu调试程序崩溃" itemprop="url">Ubuntu调试程序崩溃</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2018-12-09T12:15:33.000Z" itemprop="datePublished"> 发表于 2018-12-09</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>在Ubuntu的官方的Wiki中给出了Ubuntu中的应用程序崩溃的调试方法，其网址为<a href="https://wiki.ubuntu.com/DebuggingProgramCrash" target="_blank" rel="noopener">https://wiki.ubuntu.com/DebuggingProgramCrash</a>。这里简单翻译一下该文档，作为今后查阅资料的参考。</p>
+<p>[TOC]</p>
+<h3 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h3><p>这篇文章描述了如何在Ubuntu上安装调试包，让用户可以在手动执行时提供相关信息，这些信息是发现程序错误所需的详细信息。</p>
+<ol>
+<li>栈回溯监视工具-Backtrace。</li>
+<li>内存检查工具-Valgrind，如果程序崩溃时提示“段错误”或“总线错误”。</li>
+<li>系统调用监视工具-Strace。
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2018/12/09/Ubuntu-Debugging-Program-Crash.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Ubuntu/">Ubuntu</a><a href="/tags/gdb/">gdb</a><a href="/tags/翻译/">翻译</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2018/11/09/WindowsX64-Wow64-Internals.html" title="Windows WoW64浅析" itemprop="url">Windows WoW64浅析</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2018-11-09T12:15:33.000Z" itemprop="datePublished"> 发表于 2018-11-09</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>WOW64（Windows-On-Windows 64bit）是X64 Windows操作系统的一个子系统，为32位应用程序提供运行环境。类似的还有WOW32子系统，负责在32位Windows系统上运行16位应用程序。</p>
+<p>WoW64存在的原因还要从CPU的发展上开始说，X86指令集是一个指令集架构家族，最初在Intel 8086处理器中引入，开始它主要用于16位系统。从Intel 386处理器发布开始升级为32位，并且32位指令集一直保持了很久。了解32位系统的都知道32位CPU将内存空间限制到了4G（单一用户模式进程至少是这样）。随着RAM的越来越大，4G限制就成了瓶颈，系统无法使用更大的内存空间。于是2001年Intel发布了64位的IA64架构，它是一个全新的架构，架构设计非常清晰，比老的X86架构要更好。对于软件来说兼容性很重要，但是IA64处理器无法运行X86代码，这样问题就很严重了，已有的软件无法在新的CPU上运行。于是在2003年AMD发布了AMD64架构，它是对X86架构的增量更新，用于添加64位支持。这种架构的X64处理器可以执行X86代码，所以用户可以在X64处理器上运行现有的程序和操作系统。直到今天，X86和X64依旧是个人计算机和笔记本电脑使用CPU的主流。</p>
+<p>如下为X64和X86指令，与X86指令相对应，X64指令需要增加额外的前缀字节（REX Prefix）表示使用64位寄存器。由于指针等数据大小翻倍，所以结构体中指针偏移大小也可能会增加。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">// X86指令</span><br><span class="line">0x8B, 0x52, 0x0C, // mov edx, dword ptr [edx+0Ch]</span><br><span class="line"></span><br><span class="line">// X64指令</span><br><span class="line">0x48, 0x8B, 0x52, 0x18, // mov rdx, qword ptr [rdx+18h]</span><br></pre></td></tr></table></figure>
+<p>一些指令在X86和X64上编码一致，比如短跳转。区分两种指令比较通用的方法是看指令是否携带了REX前缀字节（REX前缀字节用于表示使用64位寄存器或使用64位操作数）。REX前缀字节会覆盖一部分现存X86指令，因此在执行一块代码时需要告知X64处理器按照X86还是X64来解析指令。到底是怎么告知CPU要将代码按照X86解析还是按照X64解析呢？下面看Intel的白皮书给出的关于<code>IA-32e</code>如何区分兼容模式和64位模式。<br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2018/11/09/WindowsX64-Wow64-Internals.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Windows/">Windows</a><a href="/tags/WoW64/">WoW64</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2018/01/14/FromAsmToProtected-X86Asm-ProtectMode.html" title="《X86汇编语言-从实模式到保护模式》—保护模式笔记" itemprop="url">《X86汇编语言-从实模式到保护模式》—保护模式笔记</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2018-01-14T01:15:33.000Z" itemprop="datePublished"> 发表于 2018-01-14</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>前面一篇总结了X86汇编中实模式的阅读笔记，这一篇总结一下保护模式的阅读笔记。</p>
+<h4 id="32位X86处理器"><a href="#32位X86处理器" class="headerlink" title="32位X86处理器"></a>32位X86处理器</h4><p>在32位处理器上，8个通用寄存器扩展为32位，段寄存器CS/SS/DS/ES扩展出描述符高速缓冲器，用于缓存保护模式下的短描述符（当然32位处理器的段寄存器 高速缓存在实模式下也是有用的，用其中的20位保存段寄存器的基地址），并且32位处理器上还多出FS/GS两个段寄存器。</p>
+<p>32位处理器上启用了保护模式后，根据分段机制计算出来的地址值，即线性地址，这个地址在没有开启分页机制情况下就是要访问的物理地址。</p>
+<p>32位处理器也有更灵活的内存寻址方式，除了ESP无法当作内存操作中的变址寄存器外，其他的都可以使用。如下图，在16位处理器中，只有BX/BP/SI/DI可以作为变址寻址；而在32位的处理器中，所有的通用寄存器都可以作为变址寻址的寄存器。</p>
+<p><div align="center"><br><img src="/img/2018-01-14-ETU-X86Asm-ProtectMode-16bit-mem-address.jpg" alt="图1 16位处理器内存寻址方式"><br></div><br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2018/01/14/FromAsmToProtected-X86Asm-ProtectMode.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/笔记/">笔记</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/X86汇编/">X86汇编</a><a href="/tags/保护模式/">保护模式</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2018/01/12/FromAsmToProtected-X86Asm-RealMode.html" title="《X86汇编语言-从实模式到保护模式》—实模式笔记" itemprop="url">《X86汇编语言-从实模式到保护模式》—实模式笔记</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2018-01-12T01:15:33.000Z" itemprop="datePublished"> 发表于 2018-01-12</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>计算机是所有软件的基础，了解基础才能更好学习其他的内容，这里推荐一本书，李忠老师的《穿越计算机的迷雾》，它可以作为非计算机专业看的计算机原理书籍，也可以作为了解计算机发展的历史。这本书用通俗易懂的语言讲述了计算机从何而来，以及计算机最基本的原理。</p>
+<p>再一本还是李忠老师的书，书名是《X86汇编语言-从实模式到保护模式》。它是一本讲计算机汇编语言的书籍，以NASM开源汇编器为编译工具。除了汇编语言以外，李忠老师详细讲解了实模式与保护模式，以及保护模式下的分段机制，分页机制，任务等CPU功能，这些内容的讲述为学习操作系统原理可以打下良好的基础。</p>
+<p>这两本书都属于通俗易懂的书籍，非常推荐对计算机基础原理感兴趣而又不知从何处开始学习的人阅读。<br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2018/01/12/FromAsmToProtected-X86Asm-RealMode.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/笔记/">笔记</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/X86汇编/">X86汇编</a><a href="/tags/实模式/">实模式</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/12/04/reading-book.html" title="读《拒绝平庸》" itemprop="url">读《拒绝平庸》</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-12-04T01:26:23.000Z" itemprop="datePublished"> 发表于 2017-12-04</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>读完一本书，突然大有感悟。其实书前两天差不多已经读完，只是一直不思考，只有今天才静下心来思考了一下！</p>
+<p>读这本书并不想评论老周如何，360如何，只是从中想到几个东西。</p>
+<p>其实与其他公司的成功一样，基本都是偶然中的必然！腾讯只是觉得OICQ有意思，发布后又大量用户，它是个机会，所以一直坚持做。但是做着做着就找到了挣钱的门道，既不损坏用户，公司又争到了钱，也就成功了。安全卫士最初也只是老周想要为自己正名用，也并非想拿它赚多少钱，但是搞完后发现很多人用，慢慢提出了免费杀毒，并且也做到了。再到后面有了用户了，自然而然就找到了挣钱的方法，虽然比较艰苦，但是活下来不是问题。看似非有意为之，但是要准备好！</p>
+<p>反思，书中不停强调老周有不断反思失败或挫折的习惯，也正是反思让他不断躲过了之前遇到的坑！仔细想来，自己一直“没时间”反思，总是那么忙！但是越不反思，错过的越多！以后怎么做呢？一天到晚了，晚上要反思这一天过程，争取明天过得更好！一周过去了，任务完成得如何也要反思，总结经验，下一周才能更好完成任务。一年过去了，反思这一年，才能计划明年怎么走！说到容易，做到何其难也。<br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/12/04/reading-book.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/读书/">读书</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/反思/">反思</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/09/06/Windows-Subsystem-Linux-internals.html" title="Windows WSL子系统（Windows Subsystem for Linux）" itemprop="url">Windows WSL子系统（Windows Subsystem for Linux）</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-09-06T05:52:23.000Z" itemprop="datePublished"> 发表于 2017-09-06</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>windows 10在14393之后开始支持Ubuntu子系统WSL，全称Windows Subsystem for Linux（Windows的Linux子系统）。这个子系统并非Hyper-V启动Ubuntu的虚拟机，而是直接的Local系统，由子系统将Linux调用转成Native的API；这个子系统也不是简单cygwin扩展，而是比cygwin更像Linux操作系统。</p>
+<p>之前看过老雷的文章《在调试器里看Windows 10的Linux子系统》，这里贴个链接<a href="http://geek.csdn.net/news/detail/200336" target="_blank" rel="noopener">http://geek.csdn.net/news/detail/200336</a>，这篇文章对于Win10 RS2版本中的WSL Beta版做了分析，有兴趣可以看看这篇文章。</p>
+<p>在Win10 RS3版本中WSL转正了，添加删除服务中没有Beta标注了，并且支持多个Linux版本。支持的Linux版本包括Ubuntu，OpenSUSE，SLES等。</p>
+<p>这一篇简单介绍一些WSL的开启及其安装方法；在后面将微软官方博客关于WSL的原理做简单介绍。</p>
+<p>微软的博客地址如下：</p>
+<p><a href="https://blogs.msdn.microsoft.com/wsl/page/2/" target="_blank" rel="noopener">https://blogs.msdn.microsoft.com/wsl/page/2/</a></p>
+<h4 id="WSL及其上Ubuntu安装"><a href="#WSL及其上Ubuntu安装" class="headerlink" title="WSL及其上Ubuntu安装"></a>WSL及其上Ubuntu安装</h4><p>从Win10的16215.0开始支持Ubuntu通过应用商店安装，从应用商店中搜索Ubuntu，可以看到如下的Ubuntu APP页面，直接安装即可。</p>
+<div align="center"><br><img src="/img/2017-10-23-Windows-Subsystem-Linux-internals-appshop-ubuntu-download.jpg" alt="图1 开启WSL可选组件"><br></div><br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/09/06/Windows-Subsystem-Linux-internals.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/笔记/">笔记</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Windows/">Windows</a><a href="/tags/WSL/">WSL</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/09/03/Bochs-Internal-debugger-manual-translation.html" title="Bochs内置调试器使用" itemprop="url">Bochs内置调试器使用</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-09-03T01:52:23.000Z" itemprop="datePublished"> 发表于 2017-09-03</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>Bochs虚拟机就不过多介绍了，官网上说的非常清楚。Bochs是一款模拟形式的虚拟机，区别于VMWare等虚拟机。但是Bochs有一个内置调试器，可以用来调试系统内核，尤其调试系统内核未初始化内置调试之前的系统引导阶段代码逻辑。下面将Bochs官网的使用Bochs内置调试器的教程简单翻译一下。</p>
+<p>原文翻译如下：</p>
+<h4 id="使用Bochs内置调试器"><a href="#使用Bochs内置调试器" class="headerlink" title="使用Bochs内置调试器"></a>使用Bochs内置调试器</h4><p>在编译Bochs时可以添加编译条件，在Bochs内部编译像GDB一样的命令行调试器，使用这个调试器可以设置断点，单步执行指令，或其他的有用的调试功能。如果有其他的调试命令你觉得对调试器非常有帮助，告诉我，我尽可能实现它。</p>
+<blockquote>
+<p>注意：这一部分介绍了如何开启和使用Bochs命令行调试器。如果想要使用图形形式的前端请参考调试器GUI部分如何开启功能。</p>
+</blockquote>
+<p>要是用调试器，在编译Bochs时需要使用<code>--enable-debugger</code>和<code>--enable-disasm</code>编译标志进行编译配置。例如：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">./configure --enable-debugger --enable-disasm</span><br></pre></td></tr></table></figure></p>
+<blockquote>
+<p>注意：编译时必须使用flex 2.5.4或更高版本。我听说2.5.2版本无法正常工作。</p>
+</blockquote>
+<p>第一次启动Bochs时，会看到如下的命令行提示符。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">bochs:1&gt;</span><br></pre></td></tr></table></figure>
+<p>在命令行提示符中就可以输入如下的这些调试命令了。<br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/09/03/Bochs-Internal-debugger-manual-translation.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/翻译/">翻译</a>►<a class="article-category-link" href="/categories/翻译/笔记/">笔记</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Bochs/">Bochs</a><a href="/tags/ReactOS/">ReactOS</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/08/04/Windows-X64-Try-Except-Finally.html" title="Windows X64的Ring3层异常处理机制" itemprop="url">Windows X64的Ring3层异常处理机制</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-08-04T01:52:23.000Z" itemprop="datePublished"> 发表于 2017-08-04</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>前面自己总结了一下X86下的<code>__try/__except/__finally</code>等编译后的内容，以及异常分发到异常处理函数时的执行的过程。后面想看看X64上的内容，觉得X64的就不需要总结了，参考网上前行者的资料简单学习即可。当一点一点地看网上资料时，发现很多细节还是理解不透，无奈还是自己来总结一下。希望后来的朋友看到时不会有和我一样的感觉。后面会将参考到的资料列举一下，方便后来学习者参考，防止他们看这篇总结时也有我看他人学习笔记一样的感觉。</p>
+<p>Visual C++支持三种异常，即C++异常处理，结构化异常处理，MFC异常。对于大多数C++程序，应该使用类型安全的C++异常处理，该处理可以确保在堆栈展开过程中调用对象析构函数；结构化异常处理为Windows提供供其自己的使用的，建议不要用于C++或MFC编程；MFC的异常不在讨论之列。其中标准C++异常处理是Visual C++上对Windows结构化异常进一步扩展，加入了展开中的对象析构等内容，所以这里也不会去总结标准C++的异常机制。</p>
+<p>有前面的X86上的异常处理总结，这一篇总结起来就会相对简单一点。使用和上次相同的seh程序来解析（程序源码这里就不给出了）。与X86上类似的过程，在X64上也是一样，异常分发由RtlDispatchException函数负责，依次遍历“异常链表”，调用其过滤函数；如果过滤函数返回了<code>EXCEPTION_EXECUTE_HANDLER</code>则表示当前的异常处理函数负责处理该异常，然后进行全局展开、局部展开，最后调用异常处理函数，完成这一系列动作之后，程序恢复正常执行，执行<code>__try*</code>块（整个异常块）之后的代码；如果过滤函数返回继续执行即<code>EXCEPTION_CONTINUE_EXECUTION</code>，则返回异常出继续执行；如果返回<code>EXCEPTION_CONTINUE_SEARCH</code>，则继续遍历“异常链表”。当然没有处理异常最终会执行到线程起始处的异常处理函数，结果就是结束线程或进程。<br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/08/04/Windows-X64-Try-Except-Finally.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Windbg/">Windbg</a><a href="/tags/Exception/">Exception</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/07/26/VS2008-Windows-Try-Except-Finally.html" title="Windows X86的ring3结构化异常处理" itemprop="url">Windows X86的ring3结构化异常处理</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-07-26T12:52:23.000Z" itemprop="datePublished"> 发表于 2017-07-26</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>前面总结过Windows的异常分发机制，但是对于分发到指定异常处理器后的内容没有进一步总结。这个里面涉及到异常过滤和栈“展开”等内容，尤其栈“展开”一直不明白怎么回事。既然不想糊里糊涂，那就总结一下搞明白，”纸上得来终觉浅，绝知此事要躬行”。</p>
+<p>这篇博文以seh程序为例来解析实际的应用程序中异常过滤和异常处理以及栈展开的内容。程序的代码如下代码块所示。代码非常简单，仅仅是main函数中调用了一个SehTest，在该函数中有三个__try块，一个为独立的代码块，另外两个嵌套。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br></pre></td><td class="code"><pre><span class="line">#include &quot;stdafx.h&quot;</span><br><span class="line">#include &lt;Windows.h&gt;</span><br><span class="line"></span><br><span class="line">int Filter_0(LPEXCEPTION_POINTERS p_exinfo)</span><br><span class="line">&#123;</span><br><span class="line">	if(p_exinfo-&gt;ExceptionRecord-&gt;ExceptionCode == EXCEPTION_ACCESS_VIOLATION)</span><br><span class="line">	&#123;</span><br><span class="line">		printf(&quot;存储保护异常\n&quot;);</span><br><span class="line">		return 1;</span><br><span class="line">	&#125;</span><br><span class="line">	else</span><br><span class="line">		return 0;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int Filter_2(LPEXCEPTION_POINTERS p_exinfo)</span><br><span class="line">&#123;</span><br><span class="line">	if(p_exinfo-&gt;ExceptionRecord-&gt;ExceptionCode == EXCEPTION_INT_DIVIDE_BY_ZERO)</span><br><span class="line">	&#123;</span><br><span class="line">		printf(&quot;被0除异常\n&quot;);</span><br><span class="line">		return 1;</span><br><span class="line">	&#125;</span><br><span class="line">	else</span><br><span class="line">		return 0;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">VOID SehTest()</span><br><span class="line">&#123;</span><br><span class="line">	ULONG ulVal = 0;</span><br><span class="line"></span><br><span class="line">	__try // 第一个 __try 域</span><br><span class="line">	&#123;</span><br><span class="line">		ulVal = 0x11111111; // 最后一位为1表示“在 __try 代码块中”</span><br><span class="line">	&#125;</span><br><span class="line">	__except(Filter_0(GetExceptionInformation()))</span><br><span class="line">	&#123;</span><br><span class="line">		ulVal = 0x11111110; // 最后一位为0表示“在 __except/__finally 代码块中”</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	__try // 第二个 __try 域</span><br><span class="line">	&#123;</span><br><span class="line">		ulVal = 0x22222222;</span><br><span class="line"></span><br><span class="line">		__try // 第三个 __try 域</span><br><span class="line">		&#123;</span><br><span class="line">			ulVal = 0x33333333;</span><br><span class="line"></span><br><span class="line">			*((ULONG*)NULL) = ulVal; // 触发异常</span><br><span class="line">		&#125;</span><br><span class="line">		__finally</span><br><span class="line">		&#123;</span><br><span class="line">			ulVal = 0x33333330;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	__except(Filter_2(GetExceptionInformation()))</span><br><span class="line">	&#123;</span><br><span class="line">		ulVal = 0x22222220;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	return;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int _tmain(int argc, _TCHAR* argv[])</span><br><span class="line">&#123;</span><br><span class="line">	SehTest();</span><br><span class="line">	return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/07/26/VS2008-Windows-Try-Except-Finally.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Windbg/">Windbg</a><a href="/tags/Exception/">Exception</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/07/26/read-dark-time-log.html" title="《暗时间》读书笔记" itemprop="url">《暗时间》读书笔记</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-07-26T02:07:03.000Z" itemprop="datePublished"> 发表于 2017-07-26</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>本篇是读《暗时间》的笔记或总结！总结与讲解可能是将书读薄的最佳的两个方法吧，就像书中刘未鹏说的要有自己的思考，总结和讲解时才会将自己的思考最大化。</p>
+<p>下面列举一下自己在阅读《暗时间》时感触比较深的几点。</p>
+<p>首先，用“学习时间（投入时间）”来衡量学习是错误的。这一点深感同意，很多时候长时间的学习，但是效率低下，倒不如一两天专心深入学习收获多。而应该按照“实际投入是时间与效率的乘积”这样来计算，其实就是学习效率很重要，学习效率进一步引申就是专注。书中的一个例子就是，大脑开始一件任务的时候，必须要有一定的时间来“热身”。举个例子，看了一会书之后，突然感到一阵无聊，忍不住打开浏览器，十分钟后想起来还要继续读书，但是要恢复当时的理想状态，需要一段时间来努力集中精力。将记忆中相关的知识激活起来，从而进入状态。上了十分钟网之后，原来的那些记忆已经被抑制了。如果“热身”需要一刻钟，看似十分钟的上网闲逛其实花费了25分钟。</p>
+<p>看了三个小时书，或者是调试了半个小时的程序之后，往往满脑子都是相关的东西，所有这些知识都处于活跃状态。换言之大脑中所有相关的记忆神经网络都被激活了，要达到这种忘记时间流逝的“沉浸”状态（心理学上叫“流体验”），不是三两分钟的事。而这种状态一旦被打破，无形间效率就会大打折扣。这也是为什么要创造大块时间来阅读重要东西。这样有利于“沉浸”进去，使得新知识可以与大脑中其他相关的各种既有的知识充分融合，关联起来。<br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/07/26/read-dark-time-log.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/读书/">读书</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/读书笔记/">读书笔记</a><a href="/tags/思维/">思维</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+
+  <nav id="page-nav" class="clearfix">
+    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="extend next" rel="next" href="/page/2/">Next<span></span></a>
+  </nav>
+
+</div>
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  <div class="linkslist">
+  <p class="asidetitle">专栏</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://dbgtech.github.io/Tools/" target="_blank" title="常用工具">常用工具</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+		  
+			<li><a href="/categories/散记/" title="散记">散记<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/笔记/" title="笔记">笔记<sup>6</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/读书/" title="读书">读书<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/调试/" title="调试">调试<sup>8</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/转载/" title="转载">转载<sup>1</sup></a></li>
+		  
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			
+				<li><a href="/tags/Windbg/" title="Windbg">Windbg<sup>5</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Exception/" title="Exception">Exception<sup>4</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Windows/" title="Windows">Windows<sup>3</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/心情/" title="心情">心情<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/X86汇编/" title="X86汇编">X86汇编<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Markdown/" title="Markdown">Markdown<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Stack-Cookie/" title="Stack Cookie">Stack Cookie<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/time/" title="time">time<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C/C++">C/C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Win10/" title="Win10">Win10<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/UWP/" title="UWP">UWP<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/读书笔记/" title="读书笔记">读书笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C\C++">C\C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/反思/" title="反思">反思<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/实模式/" title="实模式">实模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/保护模式/" title="保护模式">保护模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/运行时库/" title="运行时库">运行时库<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/WSL/" title="WSL">WSL<sup>1</sup></a></li>
+			
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://git-scm.com/book/zh/v2" target="_blank" title="Git">Git</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://hexo.io/zh-cn/docs/" target="_blank" title="Hexo">Hexo</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://36kr.com/" target="_blank" title="36氪">36氪</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://wiki.osdev.org/Expanded_Main_Page" target="_blank" title="OSDev">OSDev</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.reactos.com/" target="_blank" title="ReactOS">ReactOS</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.freebuf.com/" target="_blank" title="FreeBuf">FreeBuf</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.appinn.com/markdown/" target="_blank" title="Makedown">Makedown</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://www.huxiu.com/" target="_blank" title="虎嗅网">虎嗅网</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://bbs.pediy.com/" target="_blank" title="看雪论坛">看雪论坛</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.geekpark.net/" target="_blank" title="极客公园">极客公园</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  
+  <div class="archiveslist">
+    <p class="asidetitle"><a href="/archives">归档</a></p>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/12/">十二月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/11/">十一月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/01/">一月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/12/">十二月 2016</a><span class="archive-list-count">1</span></li></ul>
+  </div>
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+		<p class="copyright">
+		Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Jacman">Jacman</a> © 2018 
+		
+		<a href="/about" target="_blank" title="Andy Guo">Andy Guo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+<script src="/js/jquery.qrcode-0.12.0.min.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+  
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else{
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+        
+    }
+  });
+});
+</script>
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+<!-- Analytics Begin -->
+
+
+
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "//hm.baidu.com/hm.js?e6d1f421bbc9962127a50488f9ed37d1";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+
+
+
+<!-- Analytics End -->
+
+<!-- Totop Begin -->
+
+	<div id="totop">
+	<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+	</div>
+	<script src="/js/totop.js"></script>
+
+<!-- Totop End -->
+
+<!-- MathJax Begin -->
+<!-- mathjax config similar to math.stackexchange -->
+
+
+<!-- MathJax End -->
+
+<!-- Tiny_search Begin -->
+
+<!-- Tiny_search End -->
+
+  </body>
+ </html>
+

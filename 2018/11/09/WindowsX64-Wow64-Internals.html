@@ -1,0 +1,753 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>  
+  <meta charset="UTF-8">
+  
+    <title>Windows WoW64浅析 | DbgTech</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Andy Guo">
+    
+
+    
+    <meta name="description" content="WOW64（Windows-On-Windows 64bit）是X64 Windows操作系统的一个子系统，为32位应用程序提供运行环境。类似的还有WOW32子系统，负责在32位Windows系统上运行16位应用程序。 WoW64存在的原因还要从CPU的发展上开始说，X86指令集是一个指令集架构家族，最初在Intel 8086处理器中引入，开始它主要用于16位系统。从Intel 386处理器发布开">
+<meta name="keywords" content="Windows,WoW64">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Windows WoW64浅析">
+<meta property="og:url" content="https://dbgtech.github.io/2018/11/09/WindowsX64-Wow64-Internals.html">
+<meta property="og:site_name" content="DbgTech">
+<meta property="og:description" content="WOW64（Windows-On-Windows 64bit）是X64 Windows操作系统的一个子系统，为32位应用程序提供运行环境。类似的还有WOW32子系统，负责在32位Windows系统上运行16位应用程序。 WoW64存在的原因还要从CPU的发展上开始说，X86指令集是一个指令集架构家族，最初在Intel 8086处理器中引入，开始它主要用于16位系统。从Intel 386处理器发布开">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="https://dbgtech.github.io/img/2018-11-09-Wow64-code-segment-descriptor-in-64bit-mode.png">
+<meta property="og:image" content="https://dbgtech.github.io/img/2018-11-09-Wow64-32bit-process-on-64bit-os.jpg">
+<meta property="og:updated_time" content="2018-11-09T12:09:26.345Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Windows WoW64浅析">
+<meta name="twitter:description" content="WOW64（Windows-On-Windows 64bit）是X64 Windows操作系统的一个子系统，为32位应用程序提供运行环境。类似的还有WOW32子系统，负责在32位Windows系统上运行16位应用程序。 WoW64存在的原因还要从CPU的发展上开始说，X86指令集是一个指令集架构家族，最初在Intel 8086处理器中引入，开始它主要用于16位系统。从Intel 386处理器发布开">
+<meta name="twitter:image" content="https://dbgtech.github.io/img/2018-11-09-Wow64-code-segment-descriptor-in-64bit-mode.png">
+
+    
+    <link rel="alternative" href="/atom.xml" title="DbgTech" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+  <body>
+    <header>
+      
+<div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="DbgTech" title="DbgTech"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="DbgTech">DbgTech</a></h1>
+				<h2 class="blog-motto">—— 慢下来，享受思考的小确幸！</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">Home</a></li>
+					
+						<li><a href="/column">Column</a></li>
+					
+						<li><a href="/archives">Archives</a></li>
+					
+						<li><a href="/about">About</a></li>
+					
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+  
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2018/11/09/WindowsX64-Wow64-Internals.html" title="Windows WoW64浅析" itemprop="url">Windows WoW64浅析</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2018-11-09T12:15:33.000Z" itemprop="datePublished"> 发表于 2018-11-09</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			
+		
+		</div>
+		
+		<p>WOW64（Windows-On-Windows 64bit）是X64 Windows操作系统的一个子系统，为32位应用程序提供运行环境。类似的还有WOW32子系统，负责在32位Windows系统上运行16位应用程序。</p>
+<p>WoW64存在的原因还要从CPU的发展上开始说，X86指令集是一个指令集架构家族，最初在Intel 8086处理器中引入，开始它主要用于16位系统。从Intel 386处理器发布开始升级为32位，并且32位指令集一直保持了很久。了解32位系统的都知道32位CPU将内存空间限制到了4G（单一用户模式进程至少是这样）。随着RAM的越来越大，4G限制就成了瓶颈，系统无法使用更大的内存空间。于是2001年Intel发布了64位的IA64架构，它是一个全新的架构，架构设计非常清晰，比老的X86架构要更好。对于软件来说兼容性很重要，但是IA64处理器无法运行X86代码，这样问题就很严重了，已有的软件无法在新的CPU上运行。于是在2003年AMD发布了AMD64架构，它是对X86架构的增量更新，用于添加64位支持。这种架构的X64处理器可以执行X86代码，所以用户可以在X64处理器上运行现有的程序和操作系统。直到今天，X86和X64依旧是个人计算机和笔记本电脑使用CPU的主流。</p>
+<p>如下为X64和X86指令，与X86指令相对应，X64指令需要增加额外的前缀字节（REX Prefix）表示使用64位寄存器。由于指针等数据大小翻倍，所以结构体中指针偏移大小也可能会增加。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">// X86指令</span><br><span class="line">0x8B, 0x52, 0x0C, // mov edx, dword ptr [edx+0Ch]</span><br><span class="line"></span><br><span class="line">// X64指令</span><br><span class="line">0x48, 0x8B, 0x52, 0x18, // mov rdx, qword ptr [rdx+18h]</span><br></pre></td></tr></table></figure>
+<p>一些指令在X86和X64上编码一致，比如短跳转。区分两种指令比较通用的方法是看指令是否携带了REX前缀字节（REX前缀字节用于表示使用64位寄存器或使用64位操作数）。REX前缀字节会覆盖一部分现存X86指令，因此在执行一块代码时需要告知X64处理器按照X86还是X64来解析指令。到底是怎么告知CPU要将代码按照X86解析还是按照X64解析呢？下面看Intel的白皮书给出的关于<code>IA-32e</code>如何区分兼容模式和64位模式。<br><a id="more"></a></p>
+<p><div align="center"><br><img src="/img/2018-11-09-Wow64-code-segment-descriptor-in-64bit-mode.png" alt="图1.64位模式中的代码段描述符"><br></div><br>从图1中的文字可知，Intel的CPU是根据代码段描述符的<code>CS.L</code>字段来确定，代码段描述符的该位在X86架构上没有使用的，这里被用于区分<code>IA-32e</code>下的兼容模式和X64模式。如果<code>CS.L=0</code>且处于<code>IA-32e</code>模式，那么CPU当前执行在兼容模式；如果<code>CS.L=0</code>且处于<code>IA-32e</code>模式，那么CPU当前运行在X64模式中。从这里可以看出，如果将两个代码段分别设置为不同值，其实在Ring3也是可以进行这种CPU模式切换的，这也就是WoW64所使用的方法。</p>
+<p>Windows为了在X64系统上兼容32位程序设计了WoW64，用于在X64系统上执行32位应用程序。WoW64处理X64代码和X86代码之间的切换，并且为X86进程提供一个32位运行世界。由于X64是X86扩展，从32位代码向64位代码切换并不是那么困难，代码段描述符告诉处理器将代码当作X86代码还是X64代码，32位寄存器其实就是64位寄存器忽略高一半内容，32位模式RAM的4GB的编址和64位模式低4GB一样，因此从X86代码调用到X64代码，所有需要做的就是调用一个X64段选择子即完成了切换。</p>
+<p>###WoW64简介###</p>
+<p>WoW64层处理处理器的32位和64位模式切换以及模拟32位系统的事务。WOW64在用户模式下实现，作为32位ntdll.dll和内核之间的转换层，从技术上说WOW64是通过三个DLL实现，<code>Wow64.dll</code>是Windows NT内核的入口转换模块，实现了<code>Ntoskrnl.exe</code>入口的桩函数，在32位和64位调用之间进行转换，包括指针和调用栈的操控等；<code>Wow64win.dll</code>为32位GUI应用程序提供合适的入口指针，即<code>Win32k.sys</code>入口桩函数；<code>Wow64cpu.dll</code>负责将处理器的32位和64位的模式之间转换。</p>
+<p>如下图1为典型的Wow64的实现原理图，上述的三个模块共同组成了WoW64模拟层：</p>
+<p><div align="center"><br><img src="/img/2018-11-09-Wow64-32bit-process-on-64bit-os.jpg" alt="图2 Wow64原理图"><br></div><br>虽然从说法上看是在X64平台上提供了X86模拟环境，但实际上32位应用程序的执行并非模拟，而是由CPU直接解析执行，因此WoW64上的32位应用程序执行速度类似于32位Windows系统上的程序执行速度。当然这只是大致上来说，如果细究肯定不是完全一样。毕竟中间插入一层WoW64逻辑，相比于直接在32位系统上运行程序要多执行一部分代码，同时还包括X64和X86转换时的内存复制等操作，这些都会损耗性能，同时还会增加内存使用。</p>
+<p>下面按照如下的几点对WoW64进行简单的分析。</p>
+<ol>
+<li>进程空间布局</li>
+<li>系统调用</li>
+<li>异常分发</li>
+<li>用户APC分发</li>
+<li>控制台支持</li>
+<li>用户回调</li>
+<li>注册表重定向</li>
+<li>文件系统重定向</li>
+</ol>
+<p>###进程空间布局###</p>
+<p>进程空间布局和32位系统上的进程类似，32位的系统模块会被映射到<code>0x80000000</code>以下的空间中，堆还是从低地址开始向上分布。因为WoW64进程是在X64进程基础上模拟X86环境，里面多出了前面说的三个模块<code>wow64cpu.dll</code>，<code>wow64.dll</code>，<code>wow64win.dll</code>，同时还包括X64的<code>ntdll.dll</code>。如上WoW64的简介中，三个模拟模块最终都要调用的64位的<code>ntdll.dll</code>中，因为它是进入内核入口。</p>
+<p><strong>进程初始化</strong></p>
+<p>WoW64进程本质上还是64位进程，在64位进程的基础上构造了32位运行环境，所以进程初始化时的第一个线程调用函数还是<code>ntdll!LdrInitializeThunk</code>，初始化安全<code>Cookie</code>后跳转到<code>ntdll!LdrpInitialize()</code>函数，紧接着会调用<code>ntdll!LdrpInitializeProcess</code>初始化进程中的内容，这个函数中会判断是否32位的EXE文件，即是否要加入WoW64层。如果是WoW64进程则加载<code>wow64.dll</code>，同时初始化<code>ntdll.dll</code>中的全局变量，如下所示：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; x ntdll!Wow64*</span><br><span class="line">00000000`77482da8 ntdll!Wow64ApcRoutine = &lt;no type information&gt;</span><br><span class="line">00000000`77482f08 ntdll!Wow64PrepareForException = &lt;no type information&gt;</span><br><span class="line">00000000`77482e18 ntdll!Wow64Handle = &lt;no type information&gt;</span><br><span class="line">00000000`77482f10 ntdll!Wow64LdrpInitialize = &lt;no type information&gt;</span><br></pre></td></tr></table></figure>
+<p>初始化WoW64层时，首先调用<code>wow64!Wow64LdrpInitialize</code>，函数中进一步调用<code>wow64!ProcessInit</code>进行进程初始化，初始化内容简单列举如下：</p>
+<ol>
+<li>读取<code>Wow64ExecuteFlags</code>标记，设置进程的提交栈大小和最大栈值。</li>
+<li>加载<code>wow64log.dll</code>初始化WoW64的日志模块。</li>
+<li>初始化WoW64共享信息变量<code>wow64!Wow64SharedInformation</code>，并赋值全局变量<code>Ntdll32KiUserExceptionDispatcher</code>，<code>Ntdll32KiUserApcDispatcher</code>等用于WoW64的异常处理，APC分发，内核回调<code>user32.dll</code>模块等。</li>
+<li>调用函数<code>Wow64pInitializeFilePathRedirection</code>设置文件路径重定向。</li>
+<li>初始化<code>ServiceTables</code>全局变量，用于WoW64中系统调用时进行调用分发。</li>
+<li>用EXE全路径调用<code>CpuProcessInit()</code>函数，修改X64与X86切换代码内容。</li>
+</ol>
+<p>在<code>wow64!ProcessInit</code>函数中开始时对<code>Wow64Info</code>的部分内容进行初始化，<code>Wow64Info</code>的位置有如下的一个指向关系，可以用作想要调试的人参考资料。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; dt 0x7efdb000 ntdll!_TEB		// X64的 TEB</span><br><span class="line">   +0x000 NtTib            : _NT_TIB</span><br><span class="line">      +0x000 ExceptionList    : 0x00000000`7efdd000 // X86 TEB指针</span><br><span class="line">   +0x008 StackBase        : 0x00000000`000bfd20 Void</span><br><span class="line">   ...</span><br><span class="line">   +0x1478 DeallocationStack : 0x00000000`001d0000 Void</span><br><span class="line">   +0x1480 TlsSlots         : [64] (null)	// 0x14D0   保存了 WOW64_TLS_WOW64INFO</span><br><span class="line">   ...</span><br><span class="line">   +0x2030 lpPEB32          :               // X86 PEB结构体地址</span><br><span class="line">   ...</span><br><span class="line">   +0x20C0 lpX86SwitchTo64BitMode           // X86向X64切换的代码 地址</span><br><span class="line"></span><br><span class="line">0:000&gt; dt 7efde000 ntdll32!_PEB		// X86的 PEB，X64的TEB中的一项TLS指向PEB后的Wow64Info结构体</span><br><span class="line">   +0x000 InheritedAddressSpace : 0 &apos;&apos;</span><br><span class="line">   ...</span><br><span class="line">   +0x23c pImageHeaderHash : (null)</span><br><span class="line">   +0x240 TracingFlags     : 0</span><br><span class="line">   +0x248 Wow64Info		   ; Wow64Info 结构体</span><br><span class="line"></span><br><span class="line">0:000:x86&gt; dt ntdll32!_TEB 0x7efdd000	// x86 TEB + 0xf70 偏移处 GdiBatchCount</span><br><span class="line">   +0x000 NtTib            : _NT_TIB</span><br><span class="line">   ...</span><br><span class="line">   +0xf6c WinSockData      : (null)</span><br><span class="line">   +0xf70 GdiBatchCount    : 0x7efdb000</span><br><span class="line">   +0xf74 CurrentIdealProcessor : _PROCESSOR_NUMBER</span><br><span class="line">   ...</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">typedef struct _WOW64INFO &#123;</span><br><span class="line">    ULONG NativeSystemPageSize;     // 模拟器所在本地系统的页面大小</span><br><span class="line">    ULONG CpuFlags;</span><br><span class="line">    WOW64_EXECUTE_OPTIONS Wow64ExecuteFlags;</span><br><span class="line">&#125; WOW64INFO, *PWOW64INFO;</span><br></pre></td></tr></table></figure>
+<p>读取注册表和加载<code>wow64log.dll</code>进行初始化这两部分很简单！接着就是调用<code>wow64!Wow64GetSharedInformation</code>函数初始化共享信息全局变量（<code>wow64!Wow64SharedInformation</code>）指向的是一个指针表，其成员内容如下所示，它们用于线程初始化，异常分发，APC分发等。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">wow64!Wow64SharedInformation</span><br><span class="line">0:000&gt; dds 000000007747b120</span><br><span class="line">00000000`7747b120  775497a9 ntdll32!LdrInitializeThunk			// wow64!Ntdll32LoaderInitRoutine</span><br><span class="line">00000000`7747b124  77520154 ntdll32!KiUserExceptionDispatcher   // wow64!Ntdll32KiUserExceptionDispatcher</span><br><span class="line">00000000`7747b128  77520058 ntdll32!KiUserApcDispatcher			// wow64!Ntdll32KiUserApcDispatcher</span><br><span class="line">00000000`7747b12c  7752010c ntdll32!KiUserCallbackDispatcher    // wow64!Ntdll32KiUserCallbackDispatcher</span><br><span class="line">00000000`7747b130  775af694 ntdll32!LdrHotPatchRoutine</span><br><span class="line">00000000`7747b134  775427b1 ntdll32!ExpInterlockedPopEntrySListFault</span><br><span class="line">00000000`7747b138  7754277b ntdll32!ExpInterlockedPopEntrySListResume</span><br><span class="line">00000000`7747b13c  775427b3 ntdll32!ExpInterlockedPopEntrySListEnd</span><br><span class="line">00000000`7747b140  775201e4 ntdll32!RtlUserThreadStart</span><br><span class="line">00000000`7747b144  775b38a0 ntdll32!RtlpQueryProcessDebugInformationRemote</span><br><span class="line">00000000`7747b148  7756a02d ntdll32!EtwpNotificationThread</span><br><span class="line">00000000`7747b14c  77510000 ntdll32!`string&apos; &lt;PERF&gt; (ntdll32+0x0)	// wow64!NtDll32Base</span><br></pre></td></tr></table></figure>
+<p>调用<code>wow64!Map64BitDlls</code>将X64的一些系统DLL，比如<code>kernel32.dll</code>所占用的基地址分配掉，防止32位相同名字DLL分配到这里？初始化全局变量<code>wow64!ServiceTables</code>，其中包含了<code>Nt</code>类函数分发表，控制台<code>con</code>类函数分发表，<code>Win32</code>GUI类函数分发表和<code>Csr</code>类函数分发表。获取Image名字，然后调用<code>wow64cpu!CpuProcessInit</code>函数判断X86和X64代码切换部分是否完整，不完整进行修改；<code>CpuProcessInit()</code>函数设置了<code>TEB32+0xC0</code>处为X86到X64转换代码指针。</p>
+<p>接下来调用<code>wow64cpu!CpuGetContext</code>函数获取X86开始执行时的<code>CONTEXT</code>内容（打印一个结构内容如下），然后获取起始运行地址，并将地址转化为32位地址。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; dt 0x00000014e5f0 ntdll32!_Context</span><br><span class="line">   +0x000 ContextFlags     : 0x1002f</span><br><span class="line">   +0x004 Dr0              : 0</span><br><span class="line">   +0x008 Dr1              : 0x74d95cd0</span><br><span class="line">   +0x00c Dr2              : 0</span><br><span class="line">   +0x010 Dr3              : 0x74d95388</span><br><span class="line">   +0x014 Dr6              : 0</span><br><span class="line">   +0x018 Dr7              : 0x7737d96e</span><br><span class="line">   +0x01c FloatSave        : _FLOATING_SAVE_AREA</span><br><span class="line">   +0x08c SegGs            : 0x2b</span><br><span class="line">   +0x090 SegFs            : 0x53</span><br><span class="line">   +0x094 SegEs            : 0x2b</span><br><span class="line">   +0x098 SegDs            : 0x2b</span><br><span class="line">   +0x09c Edi              : 0</span><br><span class="line">   +0x0a0 Esi              : 0</span><br><span class="line">   +0x0a4 Ebx              : 0x7efde000</span><br><span class="line">   +0x0a8 Edx              : 0</span><br><span class="line">   +0x0ac Ecx              : 0</span><br><span class="line">   +0x0b0 Eax              : 0xfbfcdd</span><br><span class="line">   +0x0b4 Ebp              : 0</span><br><span class="line">   +0x0b8 Eip              : 0x775201e4</span><br><span class="line">   +0x0bc SegCs            : 0x23</span><br><span class="line">   +0x0c0 EFlags           : 0x202</span><br><span class="line">   +0x0c4 Esp              : 0x30fa10</span><br><span class="line">   +0x0c8 SegSs            : 0x2b</span><br><span class="line">   +0x0cc ExtendedRegisters : [512]  &quot;???&quot;</span><br></pre></td></tr></table></figure>
+<p>在<code>wow64!Wow64SetupInitialCall</code>函数中将X64栈上的X86的<code>CONTEXT</code>复制到32位栈上，其中先调用<code>CpuGetStackPointer</code>从TEB64的<code>WOW64_TLS_CPURESERVED</code>TLS项中保存的32位CPU信息，CPU信息结构中<code>0xC8</code>偏移处保存的32位栈帧信息，栈帧减去<code>0x2CC</code>(<code>CONTEXT</code>结构体大小)，然后再减去16字节，将之前获取的<code>CONTEXT</code>内容复制过去，然后再将<code>CONTEXT</code>在栈上指针和<code>ntdll32.dll</code>句柄放到多申请的16字节中，调用<code>CpuSetStackPointer</code>设置回TEB64的TLS的<code>CPU</code>保留信息项中。接着调用<code>wow64cpu!CpuSetInstructionPointer</code>将<code>Ntdll32LoaderInitRoutine</code>全局变量保存信息（<code>ntdll32!RtlUserThreadStart</code>）设置到CPU保留信息的<code>0xBC</code>偏移处，即<code>CONTEXT</code>的<code>Eip</code>字段。</p>
+<p>调用<code>wow64!RunCpuSimulation()</code>进入CPU模拟，它调用<code>wow64cpu!CpuSimulate()</code>开始X86环境的模拟。在<code>wow64cpu!CpuSimulate</code>函数中，首先保存X64环境的寄存器到64位栈上，然后将<code>r14</code>设置为X64栈信息，<code>r12</code>寄存器设置为64位TEB地址，<code>r15</code>设置为快速（Turbo）系统调用表基地址，<code>r13</code>设置为X86的CPU保留信息结构体基地址。</p>
+<p>查看X86环境块<code>CONTEXT</code>中是否用了浮点寄存器，如果使用了则将对应信息恢复到浮点寄存器中，并返回执行；否则是普通计算，则恢复各个寄存器内容，执行远跳转指令<code>jmp fword ptr [r14] ds:00000000</code>001deb40=0023:772d97a9<code>跳转到32位开始执行，可反汇编查看32位开始执行的函数为</code>ntdll32!LdrInitializeThunk`，即X86进程的进程初始化函数入口。</p>
+<p>###系统调用###</p>
+<p>对于应用程序来说比较重要的一部分就是系统调用，它们为应用程序正常运行提供了基础服务。无论X86还是X64的进程，如果能在Ring3层完成功能，则不需要进行系统调用，这个不存在和WoW64交互，直接加载32位模块调用函数即可，比如<code>StringCchCopy</code>等函数；再一种就是必须系统支持，比如读取文件内容<code>kernel32!CreateFileW()</code>，我们知道这些函数调用都会会进入<code>ntdll.dll</code>中，最终进入到内核。这种需要进入内核的调用是需要WoW64处理的内容。下面以<code>kernel32!CreateFileW</code>为例看WoW64如何处理系统调用。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">int wmain(int argc, WCHAR* argv[])</span><br><span class="line">&#123;</span><br><span class="line">	WCHAR szFilePath[MAX_PATH + 1] = L&quot;C:\\Users\\Administrator\\Desktop\\Test\\Debug\\Test.pdb&quot;;</span><br><span class="line">	HANDLE hFile = CreateFileW(szFilePath, GENERIC_READ, FILE_SHARE_READ, NULL,	OPEN_EXISTING, 0, NULL);</span><br><span class="line">	if (hFile == INVALID_HANDLE_VALUE)</span><br><span class="line">	&#123;</span><br><span class="line">		printf(&quot;Open File Error!\n&quot;);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>首先设置断点如下，要X64和X86的<code>ntdll.dll</code>都设置上断点，看一下最终调用到系统内核之前的所有调用栈。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">0:000:x86&gt; bl</span><br><span class="line"> 0 e x86 011aa5d0     0001 (0001)  0:**** Test!wmain</span><br><span class="line"> 1 e 76d79df0     0001 (0001)  0:**** ntdll!ZwCreateFile</span><br><span class="line"> 2 e x86 76ef00e4     0001 (0001)  0:**** ntdll32!ZwCreateFile</span><br></pre></td></tr></table></figure>
+<p>首先进入到X86的<code>ntdll.dll</code>中的<code>ntdll32!ZwCreateFile</code>函数，如果是在X86系统上，那么这个函数内部就会执行中断或快速系统调用进入内核，但是在WoW64上显然这里是无法进入内核的。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">0:000:x86&gt; k</span><br><span class="line">ChildEBP RetAddr</span><br><span class="line">0028f86c 769fc76b ntdll32!ZwCreateFile</span><br><span class="line">0028f910 764d40ae KERNELBASE!CreateFileW+0x35e</span><br><span class="line">0028f93c 011aa640 kernel32!CreateFileWImplementation+0x69</span><br><span class="line">0028fc50 011ff506 Test!wmain+0x70 [c:\users\administrator\desktop\test\test\test.cpp @ 146]</span><br><span class="line">0028fc9c 011ff3df Test!__tmainCRTStartup+0x116 [f:\dd\vctools\crt_bld\self_x86\crt\src\crt0.c @ 266]</span><br><span class="line">0028fca4 764d343d Test!wmainCRTStartup+0xf [f:\dd\vctools\crt_bld\self_x86\crt\src\crt0.c @ 182]</span><br><span class="line">0028fcb0 76f09832 kernel32!BaseThreadInitThunk+0xe</span><br><span class="line">0028fcf0 76f09805 ntdll32!__RtlUserThreadStart+0x70</span><br><span class="line">0028fd08 00000000 ntdll32!_RtlUserThreadStart+0x1b</span><br></pre></td></tr></table></figure>
+<p>反汇编看一下<code>ntdll32!ZwCreateFile</code>函数的内容，可以发现在<code>ecx</code>寄存器中存入系统调用号，<code>edx</code>保存了栈指针，然后调用的是<code>fs:[0C0h]</code>。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">ntdll32!ZwCreateFile:</span><br><span class="line">76ef00e4 b852000000      mov     eax,52h</span><br><span class="line">76ef00e9 33c9            xor     ecx,ecx</span><br><span class="line">76ef00eb 8d542404        lea     edx,[esp+4]</span><br><span class="line">76ef00ef 64ff15c0000000  call    dword ptr fs:[0C0h]</span><br><span class="line">76ef00f6 83c404          add     esp,4</span><br><span class="line">76ef00f9 c22c00          ret     2Ch</span><br></pre></td></tr></table></figure>
+<p>我们知道X86系统上<code>fs</code>寄存器中其实保存的是<code>TEB</code>的基地址，<code>fs:[0C0h]</code>即TEB中<code>0xC0</code>偏移处的内容，如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">0:000:x86&gt; dt 0x7efdd000 ntdll32!_TEB</span><br><span class="line">   +0x000 NtTib            : _NT_TIB</span><br><span class="line">   ......</span><br><span class="line">   +0x044 User32Reserved   : [26] 0</span><br><span class="line">   +0x0ac UserReserved     : [5] 0</span><br><span class="line">   +0x0c0 WOW32Reserved    : 0x746b2320 Void</span><br><span class="line">   +0x0c4 CurrentLocale    : 0x804</span><br><span class="line">   ......</span><br><span class="line">   +0xf6c WinSockData      : (null)</span><br><span class="line">   +0xf70 GdiBatchCount    : 0x7efdb000</span><br><span class="line">   +0xf74 CurrentIdealProcessor : _PROCESSOR_NUMBER</span><br><span class="line">   ......</span><br></pre></td></tr></table></figure>
+<p>注意这里是X86的<code>TEB</code>，在<code>0xC0</code>偏移处为<code>WOW32Reserved</code>字段，名字就可知它与WoW64相关的内容，反汇编其内容，如下代码。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">wow64cpu!X86SwitchTo64BitMode:</span><br><span class="line">746b2320 ea1e276b743300  jmp     0033:746B271E</span><br></pre></td></tr></table></figure>
+<p>在上一节中看到过这个全局变量，在<code>wow64cpu!CpuProcessInit</code>中判断，如果没有进行初始化，则会将这块代码进行初始化。它的代码很简单，远跳转到<code>0033:746B271E</code>，根据CPU那块知识可知这是在将CPU从<code>IA32e</code>的兼容模式向64位切换。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; dg 0x23</span><br><span class="line">                                                    P Si Gr Pr Lo</span><br><span class="line">Sel        Base              Limit          Type    l ze an es ng Flags</span><br><span class="line">---- ----------------- ----------------- ---------- - -- -- -- -- --------</span><br><span class="line">0023 00000000`00000000 00000000`ffffffff Code RE Ac 3 Bg Pg P  Nl 00000cfb</span><br><span class="line"></span><br><span class="line">1: kd&gt; dg 0x33</span><br><span class="line">                                                    P Si Gr Pr Lo</span><br><span class="line">Sel        Base              Limit          Type    l ze an es ng Flags</span><br><span class="line">---- ----------------- ----------------- ---------- - -- -- -- -- --------</span><br><span class="line">0033 00000000`00000000 00000000`00000000 Code RE Ac 3 Nb By P  Lo 000002fb</span><br></pre></td></tr></table></figure>
+<blockquote>
+<p>其中Sel表示选择子，Base和Limit分别是基地址和边界，Type是段的类型，RE代表只读和可执行,Ac表示被访问过，Pl为3是ring3特权级，Bg(Big)表示为32位代码，Gran表示粒度，Pg意味着粒度的单位是内存而(4KB) , Pres代表Present即这个段是否在内存中，Long下的N1表示Not Long，意味着这不是64位代码，Lo表示这是64位代码。</p>
+</blockquote>
+<p>切换到X64模式后，执行的内容如下（从jmp后面的地址可以看到是这里的代码）。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">wow64cpu!CpupReturnFromSimulatedCode:</span><br><span class="line">00000000`746b271e 67448b0424      mov     r8d,dword ptr [esp] ds:00000000`0028f86c=76ef00f6</span><br><span class="line">00000000`746b2723 458985bc000000  mov     dword ptr [r13+0BCh],r8d</span><br><span class="line">00000000`746b272a 4189a5c8000000  mov     dword ptr [r13+0C8h],esp</span><br><span class="line">00000000`746b2731 498ba42480140000 mov     rsp,qword ptr [r12+1480h]</span><br><span class="line">00000000`746b2739 4983a4248014000000 and   qword ptr [r12+1480h],0</span><br><span class="line">00000000`746b2742 448bda          mov     r11d,edx</span><br><span class="line">wow64cpu!TurboDispatchJumpAddressStart:</span><br><span class="line">00000000`746b2745 41ff24cf        jmp     qword ptr [r15+rcx*8]</span><br></pre></td></tr></table></figure>
+<p>在上一节中的WoW64环境初始化中知道，<code>r13</code>寄存器指向CPU保留信息，其实是一个指针加上<code>CONTEXT</code>，将返回地址放到<code>CONTEXT</code>的<code>EIP</code>字段，<code>esp</code>寄存器放到<code>ESP</code>字段；<code>r12</code>寄存器指向X64环境中的TEB指针，其中<code>0x1480</code>偏移为TLS指针数组，这个偏移处为<code>WOW64_TLS_STACKPTR64</code>，即保存了上次离开X64环境时X64栈的栈顶。这里将栈恢复到<code>rsp</code>寄存器中，继续<code>CpuSimulate</code>函数中跳到X86时的状态继续执行。清空<code>WOW64_TLS_STACKPTR64</code>TLS内容，保存X86的栈指针（<code>edx</code>保存）到<code>r11</code>。</p>
+<p>接下来是一个跳转，这个跳转用于选择系统调用方式，WoW64提供了一种快速(Turbo)方式，即X86栈上已经形成了可以进行X64系统调用的形式，根据<code>ecx</code>值确定系统调用参数个数和方式，可以直接用X86栈上内容进行系统调用。这种分发所用的表如下所示，不同的值表示不同的调用方式。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; dqs @r15</span><br><span class="line">00000000`746b2450  00000000`746b2749 wow64cpu!TurboDispatchJumpAddressEnd</span><br><span class="line">00000000`746b2458  00000000`746b2dba wow64cpu!Thunk0Arg</span><br><span class="line">00000000`746b2460  00000000`746b2bce wow64cpu!Thunk0ArgReloadState</span><br><span class="line">00000000`746b2468  00000000`746b2d6a wow64cpu!Thunk1ArgSp</span><br><span class="line">00000000`746b2470  00000000`746b2d7b wow64cpu!Thunk1ArgNSp</span><br><span class="line">00000000`746b2478  00000000`746b2d77 wow64cpu!Thunk2ArgNSpNSp</span><br><span class="line">00000000`746b2480  00000000`746b2c8a wow64cpu!Thunk2ArgNSpNSpReloadState</span><br><span class="line">00000000`746b2488  00000000`746b2d84 wow64cpu!Thunk2ArgSpNSp</span><br><span class="line">00000000`746b2490  00000000`746b2d66 wow64cpu!Thunk2ArgSpSp</span><br><span class="line">00000000`746b2498  00000000`746b2d55 wow64cpu!Thunk2ArgNSpSp</span><br><span class="line">00000000`746b24a0  00000000`746b2d73 wow64cpu!Thunk3ArgNSpNSpNSp</span><br><span class="line">00000000`746b24a8  00000000`746b2d62 wow64cpu!Thunk3ArgSpSpSp</span><br><span class="line">00000000`746b24b0  00000000`746b2d8d wow64cpu!Thunk3ArgSpNSpNSp</span><br><span class="line">00000000`746b24b8  00000000`746b2bc3 wow64cpu!Thunk3ArgSpNSpNSpReloadState</span><br><span class="line">00000000`746b24c0  00000000`746b2d9e wow64cpu!Thunk3ArgSpSpNSp</span><br><span class="line">00000000`746b24c8  00000000`746b2d51 wow64cpu!Thunk3ArgNSpSpNSp</span><br><span class="line">00000000`746b24d0  00000000`746b2d80 wow64cpu!Thunk3ArgSpNSpSp</span><br><span class="line">00000000`746b24d8  00000000`746b2d6f wow64cpu!Thunk4ArgNSpNSpNSpNSp</span><br><span class="line">00000000`746b24e0  00000000`746b2d9a wow64cpu!Thunk4ArgSpSpNSpNSp</span><br><span class="line">00000000`746b24e8  00000000`746b2af4 wow64cpu!Thunk4ArgSpSpNSpNSpReloadState</span><br><span class="line">00000000`746b24f0  00000000`746b2dab wow64cpu!Thunk4ArgSpNSpNSpNSp</span><br><span class="line">00000000`746b24f8  00000000`746b2bbf wow64cpu!Thunk4ArgSpNSpNSpNSpReloadState</span><br><span class="line">00000000`746b2500  00000000`746b2d4d wow64cpu!Thunk4ArgNSpSpNSpNSp</span><br><span class="line">00000000`746b2508  00000000`746b2d5e wow64cpu!Thunk4ArgSpSpSpNSp</span><br><span class="line">00000000`746b2510  00000000`746b27be wow64cpu!QuerySystemTime</span><br><span class="line">00000000`746b2518  00000000`746b2783 wow64cpu!GetCurrentProcessorNumber</span><br><span class="line">00000000`746b2520  00000000`746b2991 wow64cpu!ReadWriteFile</span><br><span class="line">00000000`746b2528  00000000`746b28d7 wow64cpu!DeviceIoctlFile</span><br><span class="line">00000000`746b2530  00000000`746b2a42 wow64cpu!RemoveIoCompletion</span><br><span class="line">00000000`746b2538  00000000`746b27fc wow64cpu!WaitForMultipleObjects</span><br><span class="line">00000000`746b2540  00000000`746b2803 wow64cpu!WaitForMultipleObjects32</span><br><span class="line">00000000`746b2548  00000000`746b2782 wow64cpu!ThunkNone</span><br></pre></td></tr></table></figure>
+<p>如下<code>ntdll32!ZwDelayExecution</code>函数就是用了这种调用方式，它将<code>ecx</code>寄存器设置为6，在进入<code>WoW64</code>后实际调用的函数为<code>wow64cpu!Thunk2ArgNSpNSpReloadState</code>，在该函数中就调用了<code>wow64cpu!CpupSyscallStub</code>直接进入内核。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">0:000:x86&gt; u ntdll32!ZwDelayExecution</span><br><span class="line">ntdll32!ZwDelayExecution:</span><br><span class="line">7743fdac b831000000      mov     eax,31h</span><br><span class="line">7743fdb1 b906000000      mov     ecx,6</span><br><span class="line">7743fdb6 8d542404        lea     edx,[esp+4]</span><br><span class="line">7743fdba 64ff15c0000000  call    dword ptr fs:[0C0h]</span><br><span class="line">7743fdc1 83c404          add     esp,4</span><br><span class="line">7743fdc4 c20800          ret     8</span><br></pre></td></tr></table></figure>
+<p>这里看一下另一个用到系统调用的模块，即<code>User32.dll</code>，以<code>user32!CreateWindowExW</code>为例，调用到系统调用层时汇编如下所示，<code>ecx</code>寄存器内容为0，而调用号为<code>0x1076</code></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">0:000:x86&gt; u 75b1a950</span><br><span class="line">USER32!NtUserCreateWindowEx:</span><br><span class="line">75b1a950 b876100000      mov     eax,1076h</span><br><span class="line">75b1a955 b900000000      mov     ecx,0</span><br><span class="line">75b1a95a 8d542404        lea     edx,[esp+4]</span><br><span class="line">75b1a95e 64ff15c0000000  call    dword ptr fs:[0C0h]</span><br><span class="line">75b1a965 83c404          add     esp,4</span><br><span class="line">75b1a968 c23c00          ret     3Ch</span><br></pre></td></tr></table></figure>
+<p>但是对于<code>ntdll32.dll</code>转过来的系统调用都不走这种快速方式，而是需要在WoW64中进行参数的调整，然后再进行调用。<code>ecx</code>值为0，这里直接跳转到如下的内容上继续执行。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line">wow64cpu!TurboDispatchJumpAddressEnd:</span><br><span class="line">00000000`746b2749 4189b5a4000000  mov     dword ptr [r13+0A4h],esi</span><br><span class="line">00000000`746b2750 4189bda0000000  mov     dword ptr [r13+0A0h],edi</span><br><span class="line">00000000`746b2757 41899da8000000  mov     dword ptr [r13+0A8h],ebx</span><br><span class="line">00000000`746b275e 4189adb8000000  mov     dword ptr [r13+0B8h],ebp</span><br><span class="line">00000000`746b2765 9c              pushfq</span><br><span class="line">00000000`746b2766 5b              pop     rbx</span><br><span class="line">00000000`746b2767 41899dc4000000  mov     dword ptr [r13+0C4h],ebx</span><br><span class="line">00000000`746b276e 8bc8            mov     ecx,eax</span><br><span class="line">00000000`746b2770 ff150ae9ffff    call    qword ptr [wow64cpu!_imp_Wow64SystemServiceEx</span><br><span class="line">00000000`746b2776 418985b4000000  mov     dword ptr [r13+0B4h],eax</span><br><span class="line">00000000`746b277d e98ffeffff      jmp     wow64cpu!CpuSimulate+0x61 (00000000`746b2611)</span><br><span class="line"></span><br><span class="line">//////////////////////////////////////////////////////////////</span><br><span class="line">0:000&gt; dt ntdll32!_CONTEXT 00000000001dfd24		// CPUReserved</span><br><span class="line">   -0x004 XXX</span><br><span class="line">   +0x000 ContextFlags     : 0x1002f</span><br><span class="line">   +0x004 Dr0              : 0</span><br><span class="line">   +0x008 Dr1              : 0</span><br><span class="line">   +0x00c Dr2              : 0</span><br><span class="line">   +0x010 Dr3              : 0</span><br><span class="line">   +0x014 Dr6              : 0</span><br><span class="line">   +0x018 Dr7              : 0</span><br><span class="line">   +0x01c FloatSave        : _FLOATING_SAVE_AREA</span><br><span class="line">   +0x08c SegGs            : 0x2b</span><br><span class="line">   +0x090 SegFs            : 0x53</span><br><span class="line">   +0x094 SegEs            : 0x2b</span><br><span class="line">   +0x098 SegDs            : 0x2b</span><br><span class="line">   +0x09c Edi              : 0</span><br><span class="line">   +0x0a0 Esi              : 0</span><br><span class="line">   +0x0a4 Ebx              : 0x7efde000</span><br><span class="line">   +0x0a8 Edx              : 0</span><br><span class="line">   +0x0ac Ecx              : 0</span><br><span class="line">   +0x0b0 Eax              : 0</span><br><span class="line">   +0x0b4 Ebp              : 0x38fb3c</span><br><span class="line">   +0x0b8 Eip              : 0x772c00f6</span><br><span class="line">   +0x0bc SegCs            : 0x23</span><br><span class="line">   +0x0c0 EFlags           : 0x246</span><br><span class="line">   +0x0c4 Esp              : 0x38f7f8</span><br><span class="line">   +0x0c8 SegSs            : 0x2b</span><br><span class="line">   +0x0cc ExtendedRegisters : [512]  &quot;???&quot;</span><br></pre></td></tr></table></figure>
+<p>继续执行过程中，将X86转过来时寄存器的内容依次放到<code>r13</code>指向的CPU保留信息（包含的<code>CONTEXT</code>）中。保存完CPU信息后，调用<code>wow64!Wow64SystemServiceEx</code>函数进行函数调用分发。</p>
+<p>在该函数中，根据系统调用号，获取系统调用类别（四类，如下<code>wow64.dll</code>全局变量所保存内容，初始化时对该变量进行过初始化。），将系统调用号右移12位，然后与上3，该值用于选取<code>wow64!ServiceTables</code>中的四类之一。从上面<code>ntdll32.dll</code>过来的为第一类，而<code>user32.dll</code>过来的调用为第二类。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">wow64!ServiceTables</span><br><span class="line">0:000&gt; dqs 7475aa00</span><br><span class="line">00000000`7475aa00  00000000`747592a0 wow64!sdwhnt32JumpTable</span><br><span class="line">00000000`7475aa08  00000000`00000000</span><br><span class="line">00000000`7475aa10  00000000`000003e8</span><br><span class="line">00000000`7475aa18  00000000`74759fc0 wow64!sdwhnt32Number</span><br><span class="line">00000000`7475aa20  00000000`00000000</span><br><span class="line">00000000`7475aa28  00000000`00000000</span><br><span class="line"></span><br><span class="line">00000000`7475aa30  00000000`7470fae0 wow64win!sdwhwin32JumpTable</span><br><span class="line">00000000`7475aa38  00000000`00000000</span><br><span class="line">00000000`7475aa40  00000000`000003e8</span><br><span class="line">00000000`7475aa48  00000000`747114b0 wow64win!sdwhwin32Number</span><br><span class="line">00000000`7475aa50  00000000`00000000</span><br><span class="line">00000000`7475aa58  00000000`7470e110 wow64win!sdwhwin32ErrorCase</span><br><span class="line"></span><br><span class="line">00000000`7475aa60  00000000`74711b40 wow64win!sdwhconJumpTable</span><br><span class="line">00000000`7475aa68  00000000`00000000</span><br><span class="line">00000000`7475aa70  00000000`000003e8</span><br><span class="line">00000000`7475aa78  00000000`74711e60 wow64win!sdwhconNumber</span><br><span class="line">00000000`7475aa80  00000000`00000000</span><br><span class="line">00000000`7475aa88  00000000`74711820 wow64win!sdwhconErrorCase</span><br><span class="line"></span><br><span class="line">00000000`7475aa90  00000000`747591e0 wow64!sdwhbaseJumpTable</span><br><span class="line">00000000`7475aa98  00000000`00000000</span><br><span class="line">00000000`7475aaa0  00000000`000003e8</span><br><span class="line">00000000`7475aaa8  00000000`74759258 wow64!sdwhbaseNumber</span><br><span class="line">00000000`7475aab0  00000000`00000000</span><br><span class="line">00000000`7475aab8  00000000`74759160 wow64!sdwhbaseErrorCase</span><br></pre></td></tr></table></figure>
+<p>这里对于<code>ntdll32.dll</code>调用过来的，会查找<code>wow64!sdwhnt32JumpTable</code>表，我们这里查找到的函数就是<code>wow64!whNtCreateFile</code>了，进入该函数中，将X86上的参数整合到X64栈上，然后调用<code>ntdll!ZwCreateFile</code>，这时的调用栈如下。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; !wow64exts.k</span><br><span class="line">Walking 64bit Stack...</span><br><span class="line">Child-SP          RetAddr           Call Site</span><br><span class="line">00000000`0016e028 00000000`7473c25b ntdll!ZwCreateFile</span><br><span class="line">00000000`0016e030 00000000`7472d18f wow64!whNtCreateFile+0x10f</span><br><span class="line">00000000`0016e100 00000000`746b2776 wow64!Wow64SystemServiceEx+0xd7</span><br><span class="line">00000000`0016e9c0 00000000`7472d286 wow64cpu!TurboDispatchJumpAddressEnd+0x2d</span><br><span class="line">00000000`0016ea80 00000000`7472c69e wow64!RunCpuSimulation+0xa</span><br><span class="line">00000000`0016ead0 00000000`76d44223 wow64!Wow64LdrpInitialize+0x42a</span><br><span class="line">00000000`0016f020 00000000`76da9a60 ntdll!LdrpInitializeProcess+0x17e3</span><br><span class="line">00000000`0016f510 00000000`76d5374e ntdll! ?? ::FNODOBFM::`string&apos;+0x22a50</span><br><span class="line">00000000`0016f580 00000000`00000000 ntdll!LdrInitializeThunk+0xe</span><br><span class="line"></span><br><span class="line">Walking 32bit Stack...</span><br><span class="line">ChildEBP RetAddr</span><br><span class="line">0028f86c 769fc76b ntdll32!NtCreateFile+0x12</span><br><span class="line">0028f910 764d40ae KERNELBASE!CreateFileW+0x35e</span><br><span class="line">0028f93c 011aa640 kernel32!CreateFileWImplementation+0x69</span><br><span class="line">0028fc50 011ff506 Test!wmain+0x70 [c:\users\administrator\desktop\test\test\test.cpp @ 146]</span><br><span class="line">0028fc9c 011ff3df Test!__tmainCRTStartup+0x116 [f:\dd\vctools\crt_bld\self_x86\crt\src\crt0.c @ 266]</span><br><span class="line">0028fca4 764d343d Test!wmainCRTStartup+0xf [f:\dd\vctools\crt_bld\self_x86\crt\src\crt0.c @ 182]</span><br><span class="line">0028fcb0 76f09832 kernel32!BaseThreadInitThunk+0xe</span><br><span class="line">0028fcf0 76f09805 ntdll32!__RtlUserThreadStart+0x70</span><br><span class="line">0028fd08 00000000 ntdll32!_RtlUserThreadStart+0x1b</span><br></pre></td></tr></table></figure>
+<p>等到<code>ntdll!ZwCreateFile</code>和<code>ntdll!ZwCreateFile</code>依次返回后，保存系统调用返回结果（一般是错误值，放到<code>CONTEXT</code>的EAX字段），然后继续跳转，<code>wow64cpu!CpuSimulate+0x61</code>这块内容很熟悉了，即初始化时会经过此处，判断是否在协处理器上运行，如果是则恢复浮点寄存器，否则恢复X86环境中的寄存器内容（之前进入X64时已经保存），进而跳转到32位代码环境中继续执行。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line">00000000`746b2611 4183a5d002000001 and     dword ptr [r13+2D0h],1 ds:00000000`0016fff0=00000000</span><br><span class="line">00000000`746b2619 0f84af000000    je      wow64cpu!CpuSimulate+0x11e (00000000`746b26ce)</span><br><span class="line">00000000`746b261f 410f288570010000 movaps  xmm0,xmmword ptr [r13+170h]</span><br><span class="line">00000000`746b2627 410f288d80010000 movaps  xmm1,xmmword ptr [r13+180h]</span><br><span class="line">00000000`746b262f 410f289590010000 movaps  xmm2,xmmword ptr [r13+190h]</span><br><span class="line">00000000`746b2637 410f289da0010000 movaps  xmm3,xmmword ptr [r13+1A0h]</span><br><span class="line">00000000`746b263f 410f28a5b0010000 movaps  xmm4,xmmword ptr [r13+1B0h]</span><br><span class="line">00000000`746b2647 410f28adc0010000 movaps  xmm5,xmmword ptr [r13+1C0h]</span><br><span class="line">00000000`746b264f 418b8db0000000  mov     ecx,dword ptr [r13+0B0h]</span><br><span class="line">00000000`746b2656 418b95ac000000  mov     edx,dword ptr [r13+0ACh]</span><br><span class="line">00000000`746b265d 4183a5d0020000fe and     dword ptr [r13+2D0h],0FFFFFFFEh</span><br><span class="line">00000000`746b2665 418bbda0000000  mov     edi,dword ptr [r13+0A0h]</span><br><span class="line">00000000`746b266c 418bb5a4000000  mov     esi,dword ptr [r13+0A4h]</span><br><span class="line">00000000`746b2673 418b9da8000000  mov     ebx,dword ptr [r13+0A8h]</span><br><span class="line">00000000`746b267a 418badb8000000  mov     ebp,dword ptr [r13+0B8h]</span><br><span class="line">00000000`746b2681 418b85b4000000  mov     eax,dword ptr [r13+0B4h]</span><br><span class="line">00000000`746b2688 4989a42480140000 mov     qword ptr [r12+1480h],rsp</span><br><span class="line">00000000`746b2690 66c74424082300  mov     word ptr [rsp+8],23h</span><br><span class="line">00000000`746b2697 66c74424202b00  mov     word ptr [rsp+20h],2Bh</span><br><span class="line">00000000`746b269e 458b85c4000000  mov     r8d,dword ptr [r13+0C4h]</span><br><span class="line">00000000`746b26a5 4181a5c4000000fffeffff and dword ptr [r13+0C4h],0FFFFFEFFh</span><br><span class="line">00000000`746b26b0 4489442410      mov     dword ptr [rsp+10h],r8d</span><br><span class="line">00000000`746b26b5 458b85c8000000  mov     r8d,dword ptr [r13+0C8h]</span><br><span class="line">00000000`746b26bc 4c89442418      mov     qword ptr [rsp+18h],r8</span><br><span class="line">00000000`746b26c1 458b85bc000000  mov     r8d,dword ptr [r13+0BCh]</span><br><span class="line">00000000`746b26c8 4c890424        mov     qword ptr [rsp],r8</span><br><span class="line">00000000`746b26cc 48cf            iretq</span><br><span class="line"></span><br><span class="line">// 如下恢复X86环境中的寄存器内容</span><br><span class="line">00000000`746b26ce 418bbda0000000  mov     edi,dword ptr [r13+0A0h]</span><br><span class="line">00000000`746b26d5 418bb5a4000000  mov     esi,dword ptr [r13+0A4h]</span><br><span class="line">00000000`746b26dc 418b9da8000000  mov     ebx,dword ptr [r13+0A8h]</span><br><span class="line">00000000`746b26e3 418badb8000000  mov     ebp,dword ptr [r13+0B8h]</span><br><span class="line">00000000`746b26ea 418b85b4000000  mov     eax,dword ptr [r13+0B4h]</span><br><span class="line">00000000`746b26f1 4989a42480140000 mov     qword ptr [r12+1480h],rsp</span><br><span class="line">00000000`746b26f9 41c7460423000000 mov     dword ptr [r14+4],23h</span><br><span class="line">00000000`746b2701 41b82b000000    mov     r8d,2Bh</span><br><span class="line">00000000`746b2707 418ed0          mov     ss,r8w</span><br><span class="line">00000000`746b270a 418ba5c8000000  mov     esp,dword ptr [r13+0C8h]</span><br><span class="line">00000000`746b2711 458b8dbc000000  mov     r9d,dword ptr [r13+0BCh]</span><br><span class="line">00000000`746b2718 45890e          mov     dword ptr [r14],r9d</span><br><span class="line">00000000`746b271b 41ff2e          jmp     fword ptr [r14] ds:00000000`0016ea30=002376ef00f6</span><br></pre></td></tr></table></figure>
+<p>从这里就回到了X86中<code>ntdll32!ZwCreateFile</code>中继续执行。</p>
+<p><strong>补充</strong></p>
+<p>当然了X64调试器是提供了扩展模块专门用来调试WoW64进程，即<code>wow64exts.dll</code>，在Windbg中可以使用<code>.load wow64exts</code>命令来加载该扩展。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">0:000:x86&gt; !wow64exts.help</span><br><span class="line"></span><br><span class="line">Wow64 debugger extension commands:</span><br><span class="line"></span><br><span class="line">sw:            Switch between 32-bit and 64-bit mode</span><br><span class="line">k &lt;count&gt;:     Combined 32/64 stack trace</span><br><span class="line">info:          Dumps information about some important wow64 structures</span><br><span class="line">r [addr]:      Dumps x86 CONTEXT</span><br><span class="line">lf:            Dump/Set log flags</span><br><span class="line">l2f:           Enable logging to file</span><br></pre></td></tr></table></figure>
+<p>比如<code>!wow64exts.info</code>命令执行后列举出了X86和X64的基础信息，包括PEB，TEB，堆栈信息以及TEB64中的TLS内容。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">0:000:x86&gt; !wow64exts.info</span><br><span class="line">PEB32: 0x7efde000</span><br><span class="line">PEB64: 0x7efdf000</span><br><span class="line"></span><br><span class="line">Wow64 information for current thread:</span><br><span class="line"></span><br><span class="line">TEB32: 0x7efdd000</span><br><span class="line">TEB64: 0x7efdb000</span><br><span class="line"></span><br><span class="line">32 bit, StackBase   : 0x290000</span><br><span class="line">        StackLimit  : 0x28d000</span><br><span class="line">        Deallocation: 0x190000</span><br><span class="line"></span><br><span class="line">64 bit, StackBase   : 0x16fd20</span><br><span class="line">        StackLimit  : 0x16c000</span><br><span class="line">        Deallocation: 0x130000</span><br><span class="line"></span><br><span class="line">Wow64 TLS slots:</span><br><span class="line">WOW64_TLS_STACKPTR64:       0x000000000016e9c0	// X64环境转向X86时的栈</span><br><span class="line">WOW64_TLS_CPURESERVED:      0x000000000016fd20  // CPU保留信息，在0x4偏移处为X86的CONTEXT</span><br><span class="line">WOW64_TLS_INCPUSIMULATION:  0x0000000000000000</span><br><span class="line">WOW64_TLS_LOCALTHREADHEAP:  0x0000000000000000</span><br><span class="line">WOW64_TLS_EXCEPTIONADDR:    0x0000000000000000</span><br><span class="line">WOW64_TLS_USERCALLBACKDATA: 0x0000000000000000</span><br><span class="line">WOW64_TLS_EXTENDED_FLOAT:   0x0000000000000000</span><br><span class="line">WOW64_TLS_APCLIST:          0x0000000000000000</span><br><span class="line">WOW64_TLS_FILESYSREDIR:     0x0000000000000000</span><br><span class="line">WOW64_TLS_LASTWOWCALL:      0x0000000000000000</span><br><span class="line">WOW64_TLS_WOW64INFO:        0x000000007efde248	// WoW64Info 结构体指针，在PEB32末尾</span><br></pre></td></tr></table></figure>
+<p>###异常分发###</p>
+<p>从前面知道X86环境是WoW64子系统”模拟”出来的，所以WoW64就相当于X86环境的内核，所以对于异常分发来说从内核通过调用<code>ntdll!KiUserExceptionDispatcher</code>函数将异常分发到Ring3尝试找异常处理函数，我们关系的是WoW64对于异常的处理方式，这里只需要看一下从X64内核将异常转到<code>ntdll32!KiUserExceptionDispatcher</code>这一段即可。这里有从网上找来的一段关于WoW64处理异常的论述：</p>
+<blockquote>
+<p>WoW64通过<code>ntdll.dll</code>的<code>KiUserExceptionDispatcher</code>勾住了异常分发过程。无论何时当64位内核将要给一个<code>WoW64</code>进程分发一个异常时，Wow64会捕获住原生的异常以及用户模式下的环境记录（context record），然后准备一个32位异常和环境记录，并且按照原生32位内核所做的那样将他分发出去。</p>
+</blockquote>
+<p>从<code>ntdll!KiUserExceptionDispatcher</code>函数开始看一X64的Ring3异常分发到WoW64的异常分发这个过程，它的汇编代码如下，首先判断全局变量<code>ntdll!Wow64PrepareForException</code>是否赋值，它其实是在加载<code>wow64.dll</code>模块时将该模块同名导出函数赋值给该变量了。</p>
+<p>如果调试的话可以注意到，其实这时代码执行处于X86的栈上，所以要将X86栈上的数据放到X64栈上，并将栈切换到X64栈上去，通过调用<code>ntdll!Wow64PrepareForException</code>来完成这个工作。在<code>ntdll!Wow64PrepareForException</code>函数中会调用<code>wow64!CpuResetToConsistentState</code>，它主要是将异常信息机构复制到<code>wow64cpu!RecoverException64</code>变量中，将异常对应的上下文结果复制到<code>wow64cpu!RecoverContext64</code>，然后切换栈，转向使用64位代码的专用栈。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">ntdll!KiUserExceptionDispatcher:</span><br><span class="line">00000000`772cb610 fc              cld</span><br><span class="line">00000000`772cb611 488b05f0780c00  mov     rax,qword ptr [ntdll!Wow64PrepareForException]</span><br><span class="line">00000000`772cb618 4885c0          test    rax,rax</span><br><span class="line">00000000`772cb61b 740f            je      ntdll!KiUserExceptionDispatcher+0x1c (00000000`772cb62c)</span><br><span class="line">00000000`772cb61d 488bcc          mov     rcx,rsp</span><br><span class="line">00000000`772cb620 4881c1f0040000  add     rcx,4F0h</span><br><span class="line">00000000`772cb627 488bd4          mov     rdx,rsp</span><br><span class="line">00000000`772cb62a ffd0            call    rax</span><br><span class="line">00000000`772cb62c 488bcc          mov     rcx,rsp</span><br><span class="line">00000000`772cb62f 4881c1f0040000  add     rcx,4F0h</span><br><span class="line">00000000`772cb636 488bd4          mov     rdx,rsp</span><br><span class="line">00000000`772cb639 e8324afdff      call    ntdll!RtlDispatchException (00000000`772a0070)</span><br><span class="line">00000000`772cb63e 84c0            test    al,al</span><br><span class="line">00000000`772cb640 740c            je      ntdll!KiUserExceptionDispatcher+0x3e (00000000`772cb64e)</span><br><span class="line">00000000`772cb642 488bcc          mov     rcx,rsp</span><br><span class="line">00000000`772cb645 33d2            xor     edx,edx</span><br><span class="line">00000000`772cb647 e8c4010000      call    ntdll!RtlRestoreContext (00000000`772cb810)</span><br><span class="line">00000000`772cb64c eb15            jmp     ntdll!KiUserExceptionDispatcher+0x53 (00000000`772cb663)</span><br><span class="line">00000000`772cb64e 488bcc          mov     rcx,rsp</span><br><span class="line">00000000`772cb651 4881c1f0040000  add     rcx,4F0h</span><br><span class="line">00000000`772cb658 488bd4          mov     rdx,rsp</span><br><span class="line">00000000`772cb65b 4532c0          xor     r8b,r8b</span><br><span class="line">00000000`772cb65e e85df5ffff      call    ntdll!NtRaiseException (00000000`772cabc0)</span><br><span class="line">00000000`772cb663 8bc8            mov     ecx,eax</span><br><span class="line">00000000`772cb665 e886d30500      call    ntdll!RtlRaiseStatus (00000000`773289f0)</span><br></pre></td></tr></table></figure>
+<p>紧接着就会调用<code>ntdll!RtlDispatchException</code>函数，这个函数完成异常分发，它的两个参数就是从X86栈上拷贝过来的数据，异常记录和环境结构体，如下所示：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; dt ntdll!_EXCEPTION_RECORD   00000000003af7f0</span><br><span class="line">   +0x000 ExceptionCode    : 0n-1073741819  // 0x00000000c0000005</span><br><span class="line">   +0x004 ExceptionFlags   : 0</span><br><span class="line">   +0x008 ExceptionRecord  : (null)</span><br><span class="line">   +0x010 ExceptionAddress : 0x00000000`00f6a629 Void</span><br><span class="line">   +0x018 NumberParameters : 2</span><br><span class="line">   +0x020 ExceptionInformation : [15] 1</span><br><span class="line"></span><br><span class="line">0:000&gt; dt ntdll!_CONTEXT   00000000003af300</span><br><span class="line">   +0x000 P1Home           : 0x7745304d`50000063</span><br><span class="line">   +0x008 P2Home           : 0x77597390</span><br><span class="line">   +0x010 P3Home           : 0x151ab0`00000000</span><br><span class="line">   +0x018 P4Home           : 0x150000`40000062</span><br><span class="line">   +0x020 P5Home           : 0x3af404</span><br><span class="line">   +0x028 P6Home           : 0x1000000</span><br><span class="line">   +0x030 ContextFlags     : 0x10005f</span><br><span class="line">   +0x034 MxCsr            : 0x1f80</span><br><span class="line">   +0x038 SegCs            : 0x23</span><br><span class="line">   +0x03a SegDs            : 0x2b</span><br><span class="line">   +0x03c SegEs            : 0x2b</span><br><span class="line">   +0x03e SegFs            : 0x53</span><br><span class="line">   +0x040 SegGs            : 0x2b</span><br><span class="line">   +0x042 SegSs            : 0x2b</span><br><span class="line">   +0x044 EFlags           : 0x10286</span><br><span class="line">   +0x048 Dr0              : 0</span><br><span class="line">   +0x050 Dr1              : 0</span><br><span class="line">   +0x058 Dr2              : 0</span><br><span class="line">   +0x060 Dr3              : 0</span><br><span class="line">   +0x068 Dr6              : 0</span><br><span class="line">   +0x070 Dr7              : 0</span><br><span class="line">   +0x078 Rax              : 0</span><br><span class="line">   +0x080 Rcx              : 0</span><br><span class="line">   +0x088 Rdx              : 0x153058</span><br><span class="line">   +0x090 Rbx              : 0x7efde000</span><br><span class="line">   +0x098 Rsp              : 0x3afa38</span><br><span class="line">   +0x0a0 Rbp              : 0x3afb2c</span><br><span class="line">   +0x0a8 Rsi              : 0</span><br><span class="line">   +0x0b0 Rdi              : 0x3afb14</span><br><span class="line">   +0x0b8 R8               : 0x2b</span><br><span class="line">   +0x0c0 R9               : 0x7743fb1a</span><br><span class="line">   +0x0c8 R10              : 0</span><br><span class="line">   +0x0d0 R11              : 0x246</span><br><span class="line">   +0x0d8 R12              : 0x7efdb000</span><br><span class="line">   +0x0e0 R13              : 0x23fd20</span><br><span class="line">   +0x0e8 R14              : 0x23ea60</span><br><span class="line">   +0x0f0 R15              : 0x748c2450</span><br><span class="line">   +0x0f8 Rip              : 0xf6a629</span><br><span class="line">   +0x100 FltSave          : _XSAVE_FORMAT</span><br><span class="line">   +0x100 Header           : [2] _M128A</span><br><span class="line">   +0x120 Legacy           : [8] _M128A</span><br><span class="line">   +0x1a0 Xmm0             : _M128A</span><br><span class="line">   +0x1b0 Xmm1             : _M128A</span><br><span class="line">   +0x1c0 Xmm2             : _M128A</span><br><span class="line">   +0x1d0 Xmm3             : _M128A</span><br><span class="line">   +0x1e0 Xmm4             : _M128A</span><br><span class="line">   +0x1f0 Xmm5             : _M128A</span><br><span class="line">   +0x200 Xmm6             : _M128A</span><br><span class="line">   +0x210 Xmm7             : _M128A</span><br><span class="line">   +0x220 Xmm8             : _M128A</span><br><span class="line">   +0x230 Xmm9             : _M128A</span><br><span class="line">   +0x240 Xmm10            : _M128A</span><br><span class="line">   +0x250 Xmm11            : _M128A</span><br><span class="line">   +0x260 Xmm12            : _M128A</span><br><span class="line">   +0x270 Xmm13            : _M128A</span><br><span class="line">   +0x280 Xmm14            : _M128A</span><br><span class="line">   +0x290 Xmm15            : _M128A</span><br><span class="line">   +0x300 VectorRegister   : [26] _M128A</span><br><span class="line">   +0x4a0 VectorControl    : 0x630150`00000000</span><br><span class="line">   +0x4a8 DebugControl     : 0x77494dcd`00630150</span><br><span class="line">   +0x4b0 LastBranchToRip  : 0</span><br><span class="line">   +0x4b8 LastBranchFromRip : 0</span><br><span class="line">   +0x4c0 LastExceptionToRip : 0</span><br><span class="line">   +0x4c8 LastExceptionFromRip : 0</span><br></pre></td></tr></table></figure>
+<p>这里的异常分发其实是X64下的异常分发，那么它就是要按照X64的异常数据结构进行分发了，看一下当前线程中安装的异常链。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; !exchain</span><br><span class="line">8 stack frames, scanning for handlers...</span><br><span class="line">Frame 0x02: wow64cpu!CpupReturnFromSimulatedCode (00000000`748c271e)</span><br><span class="line">  ehandler wow64cpu!CpupSimulateHandler (00000000`748c2560)</span><br><span class="line">Frame 0x03: wow64!RunCpuSimulation+0xa (00000000`74c6d286)</span><br><span class="line">  ehandler wow64!_C_specific_handler (00000000`74c8e48e)</span><br><span class="line">Frame 0x04: wow64!Wow64LdrpInitialize+0x42a (00000000`74c6c69e)</span><br><span class="line">  ehandler wow64!_GSHandlerCheck (00000000`74c8e3d0)</span><br><span class="line">Frame 0x05: ntdll!LdrpInitializeProcess+0x17e3 (00000000`77294223)</span><br><span class="line">  ehandler ntdll!_GSHandlerCheck (00000000`772c0a54)</span><br><span class="line">Frame 0x06: ntdll! ?? ::FNODOBFM::`string&apos;+0x22a50 (00000000`772f9a60)</span><br><span class="line">  ehandler ntdll!_C_specific_handler (00000000`772b730c)</span><br></pre></td></tr></table></figure>
+<p>其实对Ring3层异常分发起作用的是为<code>wow64!RunCpuSimulation</code>函数设置的异常处理。当依次调用异常链上的过滤函数都没有响应时，就会执行到这里的异常过滤函数，即<code>wow64!_C_specific_handler</code>，它直接调用X64位的<code>ntdll!_C_specific_handler</code>进行处理。</p>
+<p><code>ntdll!_C_specific_handler</code>函数的过程就不详细说明了，它会遍历<code>wow64!RunCpuSimulation</code>函数的ScopeTable(分层try)，依次调用它们的过滤函数，其实这个里面只有一层，它的过滤函数如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">wow64!Wow64pLongJmp+0x652:</span><br><span class="line">00000000`74c8ec52 4055            push    rbp</span><br><span class="line">00000000`74c8ec54 4883ec20        sub     rsp,20h</span><br><span class="line">00000000`74c8ec58 488bea          mov     rbp,rdx</span><br><span class="line">00000000`74c8ec5b 48894d30        mov     qword ptr [rbp+30h],rcx</span><br><span class="line">00000000`74c8ec5f 48894d28        mov     qword ptr [rbp+28h],rcx</span><br><span class="line">00000000`74c8ec63 488b4d28        mov     rcx,qword ptr [rbp+28h]</span><br><span class="line">00000000`74c8ec67 e88cddfdff      call    wow64!Pass64bitExceptionTo32Bit (00000000`74c6c9f8)</span><br><span class="line">00000000`74c8ec6c c7452001000000  mov     dword ptr [rbp+20h],1</span><br><span class="line">00000000`74c8ec73 8b4520          mov     eax,dword ptr [rbp+20h]</span><br><span class="line">00000000`74c8ec76 4883c420        add     rsp,20h</span><br><span class="line">00000000`74c8ec7a 5d              pop     rbp</span><br><span class="line">00000000`74c8ec7b c3              ret</span><br></pre></td></tr></table></figure>
+<p>函数<code>wow64!Pass64bitExceptionTo32Bit</code>将X64的异常信息转换为X86的异常信息，其实就是<code>CONTEXT</code>和异常记录的构造。构造完成之后调用<code>wow64!Wow64SetupExceptionDispatch</code>函数，该函数中整理X86栈上的信息，并且设置跳回X86时要执行的地址，为全局变量<code>wow64!Ntdll32KiUserExceptionDispatcher</code>的值，它的值在初始化时设置为<code>ntdll32!KiUserExceptionDispatcher</code>，其实就是Ring3的异常分发起始函数。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">00000000`74c6c85f 8b0d3be70200    mov     ecx,dword ptr [wow64!Ntdll32KiUserExceptionDispatcher (00000000`74c9afa0)]</span><br><span class="line">00000000`74c6c865 ff15c556ffff    call    qword ptr [wow64!_imp_CpuSetInstructionPointer (00000000`74c61f30)]</span><br></pre></td></tr></table></figure>
+<p>接下来回到<code>ntdll!_C_specific_handler</code>函数时，返回值为<code>EXCEPTION_EXECUTE_HANDLER</code>，则需要进行栈展开。在展开过程中就会调用到<code>SCOPE_TABLE</code>中的<code>JumpTarget</code>字段所指偏移处函数，将该<code>SCOPE_TABLE</code>打印出来，看到偏移<code>0xd288</code>处为跳转指令，继续执行<code>call qword ptr [wow64!_imp_CpuSimulate]</code>。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; lm m wow64</span><br><span class="line">start             end                 module name</span><br><span class="line">00000000`74c60000 00000000`74c9f000   wow64</span><br><span class="line"></span><br><span class="line">0:000&gt; dd wow64 + 00034164</span><br><span class="line">00000000`74c94164  0000d280 0000d288 0002ec52 0000d288</span><br><span class="line"></span><br><span class="line">0:000&gt; u wow64!RunCpuSimulation</span><br><span class="line">wow64!RunCpuSimulation:</span><br><span class="line">00000000`74c6d27c 4883ec48        sub     rsp,48h</span><br><span class="line">00000000`74c6d280 ff15524cffff    call    qword ptr [wow64!_imp_CpuSimulate (00000000`74c61ed8)]</span><br><span class="line">00000000`74c6d286 eb00            jmp     wow64!RunCpuSimulation+0xc (00000000`74c6d288)</span><br><span class="line">00000000`74c6d288 ebf6            jmp     wow64!RunCpuSimulation+0x4 (00000000`74c6d280) // Handler</span><br><span class="line">00000000`74c6d28a 4883c448        add     rsp,48h</span><br><span class="line">00000000`74c6d28e c3              ret</span><br></pre></td></tr></table></figure>
+<p>根据前面，已经将X86执行环境设置为异常处理的环境了，起点为<code>ntdll32!KiUserExceptionDispatcher</code>，一旦进入模拟状态就会进行X86下的异常分发。</p>
+<p>###用户APC分发###</p>
+<p><code>WoW64</code>通过<code>ntdll!KiUserApcDispatcher</code>也勾住了用户模式APC的递交过程。无论何时当64位内核将要给一个<code>WoW64</code>进程分发一个用户模式APC时，Wow64把32位APC地址映射到一个更高的64位地址空间范围中。然后64位<code>ntdll.dll</code>捕获住原生的APC以及用户模式下的环境记录，将它映射到一个32位地址。然后为它准备一个32位用户模式APC和环境记录，并且按照原生32位内核所做的那样将它分发出去。</p>
+<p>如下为插入用户层APC时的调用栈。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; !wow64exts.k</span><br><span class="line">Walking 64bit Stack...</span><br><span class="line">Child-SP          RetAddr           Call Site</span><br><span class="line">00000000`001bdb90 00000000`74c6d18f wow64!whNtQueueApcThread+0x2a</span><br><span class="line">00000000`001bdbd0 00000000`748c2776 wow64!Wow64SystemServiceEx+0xd7</span><br><span class="line">00000000`001be490 00000000`74c6d286 wow64cpu!TurboDispatchJumpAddressEnd+0x2d</span><br><span class="line">00000000`001be550 00000000`74c6c69e wow64!RunCpuSimulation+0xa</span><br><span class="line">00000000`001be5a0 00000000`77294223 wow64!Wow64LdrpInitialize+0x42a</span><br><span class="line">00000000`001beaf0 00000000`772f9a60 ntdll!LdrpInitializeProcess+0x17e3</span><br><span class="line">00000000`001befe0 00000000`772a374e ntdll! ?? ::FNODOBFM::`string&apos;+0x22a50</span><br><span class="line">00000000`001bf050 00000000`00000000 ntdll!LdrInitializeThunk+0xe</span><br><span class="line"></span><br><span class="line">Walking 32bit Stack...</span><br><span class="line">ChildEBP RetAddr</span><br><span class="line">0040fe04 759f3ec6 ntdll32!NtQueueApcThread+0x12</span><br><span class="line">0040fe2c 013f90ab KERNELBASE!QueueUserAPC+0x6b</span><br><span class="line">0040ff0c 0146f506 Test!wmain+0x4b [c:\users\administrator\desktop\test\test\test.cpp @ 168]</span><br><span class="line">0040ff58 0146f3df Test!__tmainCRTStartup+0x116 [f:\dd\vctools\crt_bld\self_x86\crt\src\crt0.c @ 266]</span><br><span class="line">0040ff60 754e343d Test!wmainCRTStartup+0xf [f:\dd\vctools\crt_bld\self_x86\crt\src\crt0.c @ 182]</span><br><span class="line">0040ff6c 77459832 kernel32!BaseThreadInitThunk+0xe</span><br><span class="line">0040ffac 77459805 ntdll32!__RtlUserThreadStart+0x70</span><br><span class="line">0040ffc4 00000000 ntdll32!_RtlUserThreadStart+0x1b</span><br></pre></td></tr></table></figure>
+<p>这里还是需要最终调用到X64的内核插入APC，分发回来同样也是从X64的<code>ntdll.dll</code>开始，即从<code>ntdll!KiUserApcDispatcher</code>开始分发，首先将分发函数（<code>KERNELBASE!RtlDispatchAPC</code>）指针进行解码，判断该指针地址是否超过<code>0x80000000</code>，WoW64的APC来说它的该函数在<code>0x80000000</code>地址之下，那么调用<code>wow64!Wow64ApcRoutine</code>函数。</p>
+<p>函数<code>wow64!Wow64ApcRoutine</code>构建X86的运行时环境，并且设置X86下APC的分发函数，即用<code>wow64!Ntdll32KiUserApcDispatcher</code>全局变量包含值（<code>ntdll32!KiUserApcDispatcher</code>函数地址）。完成环境设置，进入X86模拟环境继续执行即可。</p>
+<p>###控制台支持###</p>
+<p>因为控制台是由<code>csrss.exe</code>在用户模式下实现的，它只是单个原生二进制可执行文件，所以32应用程序在64位Windows上执行不能执行控制台<code>I/O</code>。类似于专门有一个特殊的<code>rpcrt4.dll</code>用来将32位<code>RPC</code>适配成64位<code>RPC</code>，WoW64的32位<code>kernel32.dll</code>中有专门的代码来调用到Wow中，以便在与<code>Csrss.exe</code>和<code>Conhost.exe</code>交互过程中对参数进行适配。</p>
+<p>以32位的<code>kernel32!WriteConsoleInternal</code>为例来看一下这个逻辑，如下为该函数的反汇编。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">0:000:x86&gt; u kernel32!WriteConsoleInternal</span><br><span class="line">kernel32!WriteConsoleInternal:</span><br><span class="line">754e12d5 b802200000      mov     eax,2002h</span><br><span class="line">754e12da b900000000      mov     ecx,0</span><br><span class="line">754e12df 8d542404        lea     edx,[esp+4]</span><br><span class="line">754e12e3 64ff15c0000000  call    dword ptr fs:[0C0h]</span><br><span class="line">754e12ea 83c404          add     esp,4</span><br><span class="line">754e12ed c21400          ret     14h</span><br></pre></td></tr></table></figure>
+<p>注意这里<code>ecx</code>寄存器值为0，函数调用ID号为<code>0x2002h</code>，根据前面的四类函数映射可知它会使用<code>wow64!ServiceTables</code>表中的第三种映射。它对应的WoW64中函数为<code>wow64win!whWriteConsoleInternal</code>，这个函数接下来调用一系列函数，就如前面所述，整理参数，然后调用64位的RPC到<code>csrss.exe</code>或<code>conhost.exe</code>中。</p>
+<p>另外一类与此类似即<code>Csr</code>类的函数，如下的例子中，它即使用<code>0x30003</code>的系统调用号，映射到<code>wow64!ServiceTables</code>表中的第四类函数表（索引为3）中。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">0:000:x86&gt; u kernel32!NtWow64CsrBasepCreateProcess</span><br><span class="line">kernel32!NtWow64CsrBasepCreateProcess:</span><br><span class="line">754e8de8 b803300000      mov     eax,3003h</span><br><span class="line">754e8ded 33c9            xor     ecx,ecx</span><br><span class="line">754e8def 8d542404        lea     edx,[esp+4]</span><br><span class="line">754e8df3 64ff15c0000000  call    dword ptr fs:[0C0h]</span><br><span class="line">754e8dfa 83c404          add     esp,4</span><br><span class="line">754e8dfd c20400          ret     4</span><br></pre></td></tr></table></figure>
+<p>映射到WoW64中的函数为<code>wow64!whNtWow64CsrBasepCreateProcess</code>，它会将数据转换后调用X64对应的函数进行处理。</p>
+<p>###用户回调###</p>
+<p>从内核回调用户层的函数，这里主要是调用<code>user32.dll</code>中的回调表中函数。内核返回后进入的函数为<code>ntdll!KiUserCallbackDispatcher</code>，函数汇编如下所示：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; uf ntdll!KiUserCallbackDispatcher</span><br><span class="line">ntdll!KiUserCallbackDispatch:</span><br><span class="line">00000000`772cb5d0 488b4c2420      mov     rcx,qword ptr [rsp+20h]</span><br><span class="line">00000000`772cb5d5 8b542428        mov     edx,dword ptr [rsp+28h]</span><br><span class="line">00000000`772cb5d9 448b44242c      mov     r8d,dword ptr [rsp+2Ch]</span><br><span class="line">00000000`772cb5de 65488b042560000000 mov   rax,qword ptr gs:[60h]</span><br><span class="line">00000000`772cb5e7 4c8b4858        mov     r9,qword ptr [rax+58h]</span><br><span class="line">00000000`772cb5eb 43ff14c1        call    qword ptr [r9+r8*8]</span><br><span class="line">00000000`772cb5ef 33c9            xor     ecx,ecx</span><br><span class="line">00000000`772cb5f1 33d2            xor     edx,edx</span><br><span class="line">00000000`772cb5f3 448bc0          mov     r8d,eax</span><br><span class="line">00000000`772cb5f6 e8f5e2ffff      call    ntdll!NtCallbackReturn (00000000`772c98f0)</span><br><span class="line">00000000`772cb5fb 8bf0            mov     esi,eax</span><br><span class="line">00000000`772cb5fd 8bce            mov     ecx,esi</span><br><span class="line">00000000`772cb5ff e8ecd30500      call    ntdll!RtlRaiseStatus (00000000`773289f0)</span><br><span class="line">00000000`772cb604 ebf7            jmp     ntdll!KiUserCallbackDispatcherContinue+0xe (00000000`772cb5fd)</span><br></pre></td></tr></table></figure>
+<p>这里可以看到它取出<code>gs:[60h]</code>处的值，即PEB的地址，然后获取PEB的<code>0x58</code>偏移处的指针，如下，偏移处为<code>KernelCallbackTable</code>字段，即内核回调表。看一下内核回调表的内容，如下所示。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">0:000&gt; dt 7efdf000  ntdll!_PEB</span><br><span class="line">   +0x000 InheritedAddressSpace : 0 &apos;&apos;</span><br><span class="line">   ......</span><br><span class="line">   +0x050 ReservedBits0    : 0y000000000000000000000000000 (0)</span><br><span class="line">   +0x058 KernelCallbackTable : 0x00000000`748d1510 Void</span><br><span class="line">   +0x058 UserSharedInfoPtr : 0x00000000`748d1510 Void</span><br><span class="line">   +0x060 SystemReserved   : [1] 0</span><br><span class="line">   ......</span><br><span class="line"></span><br><span class="line">0:000&gt; dqs 748d1510</span><br><span class="line">00000000`748d1510  00000000`74902868 wow64win!whcbfnCOPYDATA</span><br><span class="line">00000000`748d1518  00000000`749029fc wow64win!whcbfnCOPYGLOBALDATA</span><br><span class="line">00000000`748d1520  00000000`74902b40 wow64win!whcbfnDWORD</span><br><span class="line">00000000`748d1528  00000000`74902dc4 wow64win!whcbfnNCDESTROY</span><br><span class="line">00000000`748d1530  00000000`74902f10 wow64win!whcbfnDWORDOPTINLPMSG</span><br><span class="line">00000000`748d1538  00000000`74903080 wow64win!whcbfnINOUTDRAG</span><br><span class="line">00000000`748d1540  00000000`7490325c wow64win!whcbfnGETTEXTLENGTHS</span><br><span class="line">00000000`748d1548  00000000`749033cc wow64win!whcbfnINCNTOUTSTRING</span><br><span class="line">00000000`748d1550  00000000`74903560 wow64win!whcbfnINCNTOUTSTRINGNULL</span><br><span class="line">00000000`748d1558  00000000`749036ec wow64win!whcbfnINLPCOMPAREITEMSTRUCT</span><br><span class="line">00000000`748d1560  00000000`74903894 wow64win!whcbfnINLPCREATESTRUCT</span><br><span class="line">00000000`748d1568  00000000`74903a94 wow64win!whcbfnINLPDELETEITEMSTRUCT</span><br><span class="line">00000000`748d1570  00000000`74903c04 wow64win!whcbfnINLPDRAWITEMSTRUCT</span><br><span class="line">00000000`748d1578  00000000`74903d90 wow64win!whcbfnINLPHELPINFOSTRUCT</span><br><span class="line">00000000`748d1580  00000000`74903f1c wow64win!whcbfnINLPHLPSTRUCT</span><br><span class="line">00000000`748d1588  00000000`749040a8 wow64win!whcbfnINLPMDICREATESTRUCT</span><br></pre></td></tr></table></figure>
+<p>从表里可知WoW64将X64原始进程的回调表内容替换成了WoW64的内容，以<code>wow64win!whcbfnCOPYDATA</code>为例，在该函数中将WoW64的回调函数ID号映射为X86的，并且将回调数据进行整合，调用<code>wow64!Wow64KiUserCallbackDispatcher</code>函数。</p>
+<p>函数<code>wow64!Wow64KiUserCallbackDispatcher</code>和前面的APC分发类似，设置回调X86时的执行地址为全局变量<code>Ntdll32KiUserCallbackDispatcher</code>(即<code>ntdll32!KiUserCallbackDispatcher</code>)，然后将执行切回X86模拟环境。</p>
+<p>进入<code>ntdll32!KiUserCallbackDispatcher</code>函数后就是纯X86的内核回调分发了。</p>
+<p>###注册表重定向###</p>
+<p>应用程序和组件程序将它们的配置数据保留在注册表中，组件程序在安装的过程中，当它们被注册的时候，通常将配置数据写到注册表中。如果同样的组件即安装注册了一个32位二进制文件，又安装了一个64位二进制文件，那么，最后被注册的组件将会覆盖掉以前组件的注册，因为他们填写在相同的位置上。为了以透明的方式解决这个问题，并且无须对32位组件进行任何代码修饰，注册表被分成了两个部分：原生的和Wow64的。在默认情况下，32位组件访问32位视图，64位组件访问64位视图，这为32位和64位组件提供了一个安全的环境，并且将32位应用程序的状态与64位应用程序的状态隔开来。</p>
+<p>为了实现这一点，Wow64截取了所有要打开注册表的系统调用，并且重新解释这些注册表键的路径，将它们指向注册表的64位视图。注册表的打开逻辑和其他的系统调用流程没有差别，只是在WoW64中在调用X64内核中之前对打开路径进行了修改，以<code>ntdll32!ZwOpenKeyEx</code>为例，它会调用到WoW64中的<code>wow64!whNtOpenKeyEx</code>函数，该函数进一步调用<code>wow64!Wow64NtOpenKey</code>，它会调用<code>wow64!ConstructKernelKeyPath</code>对打开的注册表路径进行修正。在X64上受到重定向影响的注册表路径有如下几个：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">// 64位程序的注册信息存储键</span><br><span class="line">HKLM/Software</span><br><span class="line">HKEY_CLASSES_ROOT</span><br><span class="line">HKEY_CURRENT_USER/Software/Classes</span><br><span class="line">HKEY_LOCAL_MACHINE/Software</span><br><span class="line">HKEY_USERS/*/Software/Classes</span><br><span class="line">HKEY_USERS/*_Classes</span><br><span class="line">//32位程序的注册信息重定向存储键</span><br><span class="line">HKLM/Software/WOW6432node</span><br><span class="line">HKEY_CLASSES_ROOT/WOW6432node</span><br><span class="line">HKEY_CURRENT_USER/Software/Classes/WOW6432node</span><br><span class="line">HKEY_LOCAL_MACHINE/Software/WOW6432node</span><br><span class="line">HKEY_USERS/*/Software/Classes/WOW6432node</span><br><span class="line">HKEY_USERS/*_Classes/WOW6432node</span><br></pre></td></tr></table></figure>
+<p>在打开注册表路径，获取注册表句柄时，参数中加入<code>KEY_WOW64_64KEY/KEY_WOW64_32KEY</code>分别用于32位程序访问64位程序注册表和64位程序访问32位程序注册表。</p>
+<p>###文件系统重定向###</p>
+<p>为了维护应用程序的兼容性，已经降低从Win32到64位Windows的应用程序移植代价，系统目录名称仍然保持不变。因此，<code>\Windows\System32</code>文件夹包含了原生的64位映像文件。因为Wow64勾住了所有的系统调用，所以它会解释所有与路径相关的API，将<code>\Windows\System32</code>文件夹的名称替换为<code>\Windows\Syswow64</code>。Wow64也将<code>\Windows\LastGood</code>重定向到<code>\Windows\LastGodd\Syswow64</code>，将<code>\Windows\Regedit.exe</code>重定向到<code>\Windows\syswow64\Regedit.exe</code>。通过使用系统环境变量，<code>%PROGRAMFILE%</code>环境变量对于32位程序被设置为<code>\Program File (x86)</code>，而对于64位应用程序被设置为<code>\Program File</code>文件夹，<code>CommonProgramFiles</code>和<code>CommonProgramFiles(x86)</code>也存在，它们总是指向32位的位置，而<code>ProgramW6432</code>和<code>CommonProgramWP6432</code>则无条件指向64位位置。</p>
+<p>X86所有的系统调用和操作都已经被WoW64给截取了，所以只需要在涉及上述这些路径中进行路径修改即可。在WoW64中使用<code>wow64!RedirectObjectAttributes</code>函数将路径进行修改。在<code>wow64.dll</code>中包括<code>wow64!RedirectDosPathUnicode</code>，<code>wow64!Wow64ShallowThunkAllocObjectAttributes32TO64_FNC</code>和<code>wow64!RedirectObjectName</code>等函数都会调用到它。</p>
+<p>如下两个函数可以用于打开和关闭文件重定向，它们内部会调用<code>ntdll32!RtlWow64EnableFsRedirectionEx</code>，最终用于操作X64的TEB内容。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">kernel32!Wow64DisableWow64FsRedirection	// 关闭系统重定向</span><br><span class="line">kernel32!Wow64RevertWow64FsRedirection  // 打开系统重定向</span><br></pre></td></tr></table></figure>
+<p><strong>参考文章</strong></p>
+<ol>
+<li><a href="https://baike.baidu.com/item/WOW64/2155695" target="_blank" rel="noopener">https://baike.baidu.com/item/WOW64/2155695</a></li>
+<li><a href="https://bbs.pediy.com/thread-221236.htm" target="_blank" rel="noopener">https://bbs.pediy.com/thread-221236.htm</a></li>
+<li><a href="https://www.corsix.org/content/dll-injection-and-wow64" target="_blank" rel="noopener">https://www.corsix.org/content/dll-injection-and-wow64</a></li>
+<li><a href="http://blog.rewolf.pl/blog/?p=102" target="_blank" rel="noopener">http://blog.rewolf.pl/blog/?p=102</a></li>
+<li><a href="https://www.jianshu.com/p/acf43755a042" target="_blank" rel="noopener">https://www.jianshu.com/p/acf43755a042</a></li>
+</ol>
+<p>By Andy @2018-11-09 20:20:38</p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Windows/">Windows</a><a href="/tags/WoW64/">WoW64</a>
+  </div>
+
+</div>
+
+
+
+	<div class="article-share" id="share">
+	
+	  <div data-url="https://dbgtech.github.io/2018/11/09/WindowsX64-Wow64-Internals.html" data-title="Windows WoW64浅析 | DbgTech" data-tsina="" class="share clearfix">
+	  </div>
+	
+	</div>
+
+
+</footer>
+
+   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+ <div class="prev" >
+ <a href="/2018/12/09/Ubuntu-Debugging-Program-Crash.html" title="Ubuntu调试程序崩溃">
+  <strong>上一篇：</strong><br/>
+  <span>
+  Ubuntu调试程序崩溃</span>
+</a>
+</div>
+
+
+<div class="next">
+<a href="/2018/01/14/FromAsmToProtected-X86Asm-ProtectMode.html"  title="《X86汇编语言-从实模式到保护模式》—保护模式笔记">
+ <strong>下一篇：</strong><br/> 
+ <span>《X86汇编语言-从实模式到保护模式》—保护模式笔记
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ 
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  <div class="linkslist">
+  <p class="asidetitle">专栏</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://dbgtech.github.io/Tools/" target="_blank" title="常用工具">常用工具</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+		  
+			<li><a href="/categories/散记/" title="散记">散记<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/笔记/" title="笔记">笔记<sup>6</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/读书/" title="读书">读书<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/调试/" title="调试">调试<sup>8</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/转载/" title="转载">转载<sup>1</sup></a></li>
+		  
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			
+				<li><a href="/tags/Windbg/" title="Windbg">Windbg<sup>5</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Exception/" title="Exception">Exception<sup>4</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Windows/" title="Windows">Windows<sup>3</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/心情/" title="心情">心情<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/X86汇编/" title="X86汇编">X86汇编<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Markdown/" title="Markdown">Markdown<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Stack-Cookie/" title="Stack Cookie">Stack Cookie<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/time/" title="time">time<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C/C++">C/C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Win10/" title="Win10">Win10<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/UWP/" title="UWP">UWP<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/读书笔记/" title="读书笔记">读书笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C\C++">C\C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/反思/" title="反思">反思<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/实模式/" title="实模式">实模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/保护模式/" title="保护模式">保护模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/运行时库/" title="运行时库">运行时库<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/WSL/" title="WSL">WSL<sup>1</sup></a></li>
+			
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://git-scm.com/book/zh/v2" target="_blank" title="Git">Git</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://hexo.io/zh-cn/docs/" target="_blank" title="Hexo">Hexo</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://36kr.com/" target="_blank" title="36氪">36氪</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://wiki.osdev.org/Expanded_Main_Page" target="_blank" title="OSDev">OSDev</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.reactos.com/" target="_blank" title="ReactOS">ReactOS</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.freebuf.com/" target="_blank" title="FreeBuf">FreeBuf</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.appinn.com/markdown/" target="_blank" title="Makedown">Makedown</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://www.huxiu.com/" target="_blank" title="虎嗅网">虎嗅网</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://bbs.pediy.com/" target="_blank" title="看雪论坛">看雪论坛</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.geekpark.net/" target="_blank" title="极客公园">极客公园</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  
+  <div class="archiveslist">
+    <p class="asidetitle"><a href="/archives">归档</a></p>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/12/">十二月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/11/">十一月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/01/">一月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/12/">十二月 2016</a><span class="archive-list-count">1</span></li></ul>
+  </div>
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+		<p class="copyright">
+		Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Jacman">Jacman</a> © 2018 
+		
+		<a href="/about" target="_blank" title="Andy Guo">Andy Guo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+<script src="/js/jquery.qrcode-0.12.0.min.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+  
+        getSize();
+        if (myWidth >= 1024) {
+          c.click();
+        }
+  
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else{
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  c.click(function(){
+    ta.css('display', 'block').addClass('fadeIn');
+  });
+  o.click(function(){
+    ta.css('display', 'none');
+  });
+  $(window).scroll(function(){
+    ta.css("top",Math.max(140,320-$(this).scrollTop()));
+  });
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<div class="hoverqrcode clearfix"></div>',
+  '<a class="overlay" id="qrcode"></a>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="微信"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="微博"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+
+  $('.hoverqrcode').hide();
+
+  var myWidth = 0;
+  function updatehoverqrcode(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+    var qrsize = myWidth > 1024 ? 200:100;
+    var options = {render: 'image', size: qrsize, fill: '#2ca6cb', text: url, radius: 0.5, quiet: 1};
+    var p = $('.article-share-qrcode').position();
+    $('.hoverqrcode').empty().css('width', qrsize).css('height', qrsize)
+                          .css('left', p.left-qrsize/2+20).css('top', p.top-qrsize-10)
+                          .qrcode(options);
+  };
+  $(window).resize(function(){
+    $('.hoverqrcode').hide();
+  });
+  $('.article-share-qrcode').click(function(){
+    updatehoverqrcode();
+    $('.hoverqrcode').toggle();
+  });
+  $('.article-share-qrcode').hover(function(){}, function(){
+      $('.hoverqrcode').hide();
+  });
+});   
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+<!-- Analytics Begin -->
+
+
+
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "//hm.baidu.com/hm.js?e6d1f421bbc9962127a50488f9ed37d1";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+
+
+
+<!-- Analytics End -->
+
+<!-- Totop Begin -->
+
+	<div id="totop">
+	<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+	</div>
+	<script src="/js/totop.js"></script>
+
+<!-- Totop End -->
+
+<!-- MathJax Begin -->
+<!-- mathjax config similar to math.stackexchange -->
+
+
+<!-- MathJax End -->
+
+<!-- Tiny_search Begin -->
+
+<!-- Tiny_search End -->
+
+  </body>
+</html>
+

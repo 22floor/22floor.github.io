@@ -1,0 +1,703 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>  
+  <meta charset="UTF-8">
+  
+    <title>Ubuntu调试程序崩溃 | DbgTech</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Andy Guo">
+    
+
+    
+    <meta name="description" content="在Ubuntu的官方的Wiki中给出了Ubuntu中的应用程序崩溃的调试方法，其网址为https://wiki.ubuntu.com/DebuggingProgramCrash。这里简单翻译一下该文档，作为今后查阅资料的参考。 [TOC] 介绍这篇文章描述了如何在Ubuntu上安装调试包，让用户可以在手动执行时提供相关信息，这些信息是发现程序错误所需的详细信息。  栈回溯监视工具-Backtrac">
+<meta name="keywords" content="Ubuntu,gdb,翻译">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Ubuntu调试程序崩溃">
+<meta property="og:url" content="https://dbgtech.github.io/2018/12/09/Ubuntu-Debugging-Program-Crash.html">
+<meta property="og:site_name" content="DbgTech">
+<meta property="og:description" content="在Ubuntu的官方的Wiki中给出了Ubuntu中的应用程序崩溃的调试方法，其网址为https://wiki.ubuntu.com/DebuggingProgramCrash。这里简单翻译一下该文档，作为今后查阅资料的参考。 [TOC] 介绍这篇文章描述了如何在Ubuntu上安装调试包，让用户可以在手动执行时提供相关信息，这些信息是发现程序错误所需的详细信息。  栈回溯监视工具-Backtrac">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="https://dbgtech.github.io/img/2018-12-06-Ubuntu-Debugging-Program-Crash-apport-examine-locally.png">
+<meta property="og:image" content="https://dbgtech.github.io/img/2018-12-06-Ubuntu-Debugging-Program-Crash-apport-retrace-gui.png">
+<meta property="og:image" content="https://dbgtech.github.io/img/2018-12-06-Ubuntu-Debugging-Program-Crash-apport-retrace-gdb.png">
+<meta property="og:updated_time" content="2018-12-10T02:09:17.855Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Ubuntu调试程序崩溃">
+<meta name="twitter:description" content="在Ubuntu的官方的Wiki中给出了Ubuntu中的应用程序崩溃的调试方法，其网址为https://wiki.ubuntu.com/DebuggingProgramCrash。这里简单翻译一下该文档，作为今后查阅资料的参考。 [TOC] 介绍这篇文章描述了如何在Ubuntu上安装调试包，让用户可以在手动执行时提供相关信息，这些信息是发现程序错误所需的详细信息。  栈回溯监视工具-Backtrac">
+<meta name="twitter:image" content="https://dbgtech.github.io/img/2018-12-06-Ubuntu-Debugging-Program-Crash-apport-examine-locally.png">
+
+    
+    <link rel="alternative" href="/atom.xml" title="DbgTech" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+  <body>
+    <header>
+      
+<div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="DbgTech" title="DbgTech"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="DbgTech">DbgTech</a></h1>
+				<h2 class="blog-motto">—— 慢下来，享受思考的小确幸！</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">Home</a></li>
+					
+						<li><a href="/column">Column</a></li>
+					
+						<li><a href="/archives">Archives</a></li>
+					
+						<li><a href="/about">About</a></li>
+					
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+  
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2018/12/09/Ubuntu-Debugging-Program-Crash.html" title="Ubuntu调试程序崩溃" itemprop="url">Ubuntu调试程序崩溃</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2018-12-09T12:15:33.000Z" itemprop="datePublished"> 发表于 2018-12-09</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			<ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#介绍"><span class="toc-number">1.</span> <span class="toc-text">介绍</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#使用自动生成调试崩溃报告回溯程序apport-retrace"><span class="toc-number">2.</span> <span class="toc-text">使用自动生成调试崩溃报告回溯程序apport-retrace</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#手动安装调试符号"><span class="toc-number">3.</span> <span class="toc-text">手动安装调试符号</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#卸载所有的调试符号"><span class="toc-number">4.</span> <span class="toc-text">卸载所有的调试符号</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Xorg服务器"><span class="toc-number">5.</span> <span class="toc-text">Xorg服务器</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#BugSquad相关信息"><span class="toc-number">6.</span> <span class="toc-text">BugSquad相关信息</span></a></li></ol>
+		
+		</div>
+		
+		<p>在Ubuntu的官方的Wiki中给出了Ubuntu中的应用程序崩溃的调试方法，其网址为<a href="https://wiki.ubuntu.com/DebuggingProgramCrash" target="_blank" rel="noopener">https://wiki.ubuntu.com/DebuggingProgramCrash</a>。这里简单翻译一下该文档，作为今后查阅资料的参考。</p>
+<p>[TOC]</p>
+<h3 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h3><p>这篇文章描述了如何在Ubuntu上安装调试包，让用户可以在手动执行时提供相关信息，这些信息是发现程序错误所需的详细信息。</p>
+<ol>
+<li>栈回溯监视工具-Backtrace。</li>
+<li>内存检查工具-Valgrind，如果程序崩溃时提示“段错误”或“总线错误”。</li>
+<li>系统调用监视工具-Strace。<a id="more"></a>
+<h3 id="使用自动生成调试崩溃报告回溯程序apport-retrace"><a href="#使用自动生成调试崩溃报告回溯程序apport-retrace" class="headerlink" title="使用自动生成调试崩溃报告回溯程序apport-retrace"></a>使用自动生成调试崩溃报告回溯程序<code>apport-retrace</code></h3></li>
+</ol>
+<p>如果你想要调试打包的Ubuntu软件的崩溃，<code>Apport</code>通常会抓住崩溃，在<code>/var/crash</code>目录创建一个<code>.crash</code>报告，并且报告用户程序已经崩溃。这是使用<code>apport-retrace</code>最简单的方式。</p>
+<p><code>apport-retrace</code>从自动生成调试崩溃报告中重新生成栈回溯，实际是从包含的核心转储中来重新构建栈回溯，或者创建启动gdb的终端窗口，这个环境中已经带有调试符号，并且通过核心转储已经重建了崩溃时的场景。为此，它需要找出必要的软件包集合和它们附带的调试符号包，这样重建的栈回溯就有符号可看，对于开发者修复问题也更加有用。</p>
+<p><code>apport-retrace</code>有两个模式：默认情况下它会基于系统中当前安装的软件包重新生成栈回溯，即它会假设这个报告所需的所有必要的调试符号已经安装（参考下一段了解更详细信息）。当指定了<code>-S</code>选项时，它会创建一个临时的“沙箱”，在其中下载和安装所有必须的软件包，调试符号。它不会对你的系统做任何修改，也不需要任何特殊的权限。</p>
+<p>请参考<a href="">apport-retrace手册</a>获取详细信息，以及运行程序的例子。</p>
+<p>你也可以从<code>Apport</code>崩溃通知中直接调用，点击<code>Examine locally</code>按钮就可以实现。</p>
+<div align="center"><br><img src="/img/2018-12-06-Ubuntu-Debugging-Program-Crash-apport-examine-locally.png" alt="图1 Apport崩溃提醒"><br></div>
+
+<p>点击后，程序会收集一些软件包的信息，然后询问你想要在什么模式下运行<code>apport-retrace</code>:</p>
+<div align="center"><br><img src="/img/2018-12-06-Ubuntu-Debugging-Program-Crash-apport-retrace-gui.png" alt="图2 选择Apport-retrace模式"><br></div>
+
+<p>通常保持第一个选项即可，这会在沙箱中启动中断并进入gdb。</p>
+<div align="center"><br><img src="/img/2018-12-06-Ubuntu-Debugging-Program-Crash-apport-retrace-gdb.png" alt="图3 启动GDB"><br></div>
+
+<p>如果你不想交互式的gdb会话，但是仅仅想要使用完整的符号栈回溯更新<code>.crash</code>中已有的崩溃信息，那么就可以选择第三项。</p>
+<h3 id="手动安装调试符号"><a href="#手动安装调试符号" class="headerlink" title="手动安装调试符号"></a>手动安装调试符号</h3><p>如果想要调试Ubuntu提供应用程序的崩溃，或者你自己开发的程序，以及第三方提供的程序，或者需要特定库的调试符号，安装相关的调试符号包非常有帮助。</p>
+<p><strong> 内建调试符号的软件包（*-dbg）</strong></p>
+<p>对于很多软件包来说（当然并非所有），我们可以在软件包名称后简单添加<code>-dbg</code>后缀来安装对应的调试版本，例如：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-get intall xserver-xorg-core-dbg</span><br></pre></td></tr></table></figure>
+<p><strong> 非内建调试符号包（*-dbgsym）</strong></p>
+<p>对于没有内建在程序中的调试符号，我们就必须添加额外的符号库了。但是请注意，不要即安装内建调试符号的程序，同时又安装对应的调试符号包，这很容易出现问题。软件包管理器无法校验这个重叠的符号，并且阻止它们重复安装。例如同时安装如下两个信息：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">libprotobuf-c1-dbg</span><br><span class="line">libprotobuf-c1-dbgsym</span><br></pre></td></tr></table></figure>
+<p>如下是如何安装调试符号包库的步骤：</p>
+<ol>
+<li><p>在命令行终端执行如下的命令，创建<code>/etc/apt/sources.list.d/ddebs.list</code>，它是符号源。</p>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">echo &quot;deb http://ddebs.ubuntu.com $(lsb_release -cs) main restricted universe multiverse&quot; | sudo tee -a /etc/apt/sources.list.d/ddebs.list</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>对于稳定发布版本（并非开发，alphas或betas）要在1中的文件中添加额外的两行，可以使用如下的命令来添加：</p>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">echo -e &quot;deb http://ddebs.ubuntu.com $(lsb_release -cs)-updates main restricted universe multiverse\ndeb http://ddebs.ubuntu.com $(lsb_release -cs)-proposed main restricted universe multiverse&quot; | sudo tee -a /etc/apt/sources.list.d/ddebs.list</span><br></pre></td></tr></table></figure>
+<p> 如果使用新立得软件包管理器也需要添加上述的两行。</p>
+</li>
+<li><p>在<code>System&gt;Administration</code>菜单中选择<code>Synaptic</code>。</p>
+</li>
+<li>通过<code>Settings</code>菜单选择<code>Software Sources</code>或<code>Repositories</code>，选择<code>Third-Party Software</code>标签页。</li>
+<li>点击<code>Add</code>按钮，一条一条输入上面的<code>deb ...</code>行，点击<code>Add Source</code>按钮（你必须一次添加这些行）。</li>
+<li><p>导入调试符号档案文件的签名密钥，在<code>Ubuntu 18.04</code>和之后系统上：</p>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt install ubuntu-dbgsym-keyring</span><br></pre></td></tr></table></figure>
+<p> 在早一些的Ubuntu系统上：</p>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F2EDC64DC5AEE1F6B9C621F0C8CAB6595FDFF622</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>然后运行：</p>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-get update</span><br></pre></td></tr></table></figure>
+<p> 更新你的软件包列表，或如果使用新立得软件包管理器则点击<code>Reload</code>按钮。</p>
+</li>
+<li><p>调试符号包都有<code>-dbgsym</code>后缀，所以要安装<code>yelp</code>的调试符号包则需要首先运行如下命令：</p>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">apt-cache policy yelp</span><br></pre></td></tr></table></figure>
+<p> 这条命令显示当前安装的程序的版本号（在例子中使用<code>2.22.1-0ubuntu2.8.04.1</code>）。注意：yelp（在<code>System</code>菜单的<code>Help and Support</code>中它是软件包名字）仅仅是一个例子，在你自己使用时则需要用你想要的包名字代替它。</p>
+</li>
+<li><p>安装调试符号，执行如下命令：</p>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-get install yelp-dbgsym=2.22.1-0ubuntu2.8.04.1</span><br></pre></td></tr></table></figure>
+<p> 你也可以使用新立得软件包管理器搜索<code>yelp-dbgsym</code>，然后安装它。</p>
+</li>
+</ol>
+<blockquote>
+<p>在Ubuntu比较新的系统中，比如Ubuntu 16.04中已经没有新立得软件安装程序了，变成了<code>Ubuntu 软件</code>，修改源的操作也放到了<code>软件和更新</code>程序中了。</p>
+</blockquote>
+<p><strong> 从PPA安装调试符号包 </strong></p>
+<p>如果你想要调试PPA软件包，不用怕！你可以从PPA上为这些软件安装<code>-dbgsym</code>调试符号包。在符号包源中通要安装如下的一行：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">deb http://ppa.launchpad.net/TEAM/PPA/ubuntu RELEASE main</span><br></pre></td></tr></table></figure>
+<p>在最后简单增加<code>main/debug</code>，如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">deb http://ppa.launchpad.net/TEAM/PPA/ubuntu RELEASE main main/debug</span><br></pre></td></tr></table></figure>
+<p>然后执行<code>apt update</code>和<code>apt install</code>来安装你想要的<code>-dbgsym</code>调试符号包。</p>
+<p><strong> 手动查找所需调试符号 </strong></p>
+<p>上述的过程智慧为yelp安装调试符号包。对于很多软件包，他们在不同的软件包之间共享库。因此，为了获取可读的/更详细的站回溯，或者执行其他的调试任务，你必须查找这些共享库的调试符号。例如，如果你已经将gdb挂到一个应用程序，并且得到如下的输出信息：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Reading symbols from /usr/lib/x86_64-linux-gnu/libffi.so.6...(no debugging symbols found)...done.</span><br><span class="line">Loaded symbols for /usr/lib/x86_64-linux-gnu/libffi.so.6</span><br></pre></td></tr></table></figure>
+<p>这意味着相关的调试符号没有安装。但是，这对于它自己来说没有足够信息去了解需要那个包的调试符号。因此，你可以去<a href="http://packages.ubuntu.com/" target="_blank" rel="noopener">http://packages.ubuntu.com/</a>，将如下的关键字粘贴到<code>Search the contents of packages</code>:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">x86_64-linux-gnu/libffi.so.6</span><br></pre></td></tr></table></figure>
+<p>从下拉框中选择适当的系统分发版本，然后点搜索。搜索结果会发现它所属软件包是<code>libffi6</code>。在新立得软件包管理中</p>
+<p><strong> 自动安装所有的调试符号 </strong></p>
+<p>这个过程会安装所有的调试符号，相反你可能仅仅需要一个或只对一个软件的符号感兴趣。你可以下载脚本<a href="https://wiki.ubuntu.com/DebuggingProgramCrash?action=AttachFile&amp;do=get&amp;target=list-symbols-packages-v2.sh" target="_blank" rel="noopener">list-symbols-packages-v2.1.sh</a>来解析所有的依赖。将调试器挂到已经运行的进程或许需要提升权限，即使你是进程的拥有者。如下的调用会打印出要安装文件的列表：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo bash ./list-symbols-packages-v2.sh -p $(pidof yelp)</span><br></pre></td></tr></table></figure>
+<p>自动安装他们，可以使用脚本的输出来自动调用apt。调用脚本时使用<code>-t</code>参数，输出简要的数据结果，不需要软件包的详细描述和错误信息。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo bash ./list-symbols-packages-v2.sh -t -p $(pidof yelp) 2&gt;/dev/null | xargs -d $&apos;\n&apos; sudo apt-get install</span><br></pre></td></tr></table></figure>
+<blockquote>
+<p>版本2的脚本可以兼容更新的GDB（它不再在启动时默认加载所有的库）。版本2当前只对正在运行的二进制有效，即使用<code>-p $(pidof &lt;whatever&gt;</code>参数。老版本的脚本也可用。</p>
+</blockquote>
+<h3 id="卸载所有的调试符号"><a href="#卸载所有的调试符号" class="headerlink" title="卸载所有的调试符号"></a>卸载所有的调试符号</h3><p>如果想要卸载所有的调试符号包和ddebs库，可以使用如下的命令：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-get remove \.*-dbgsym \.*-dbg</span><br><span class="line">sudo rm /etc/apt/sources.list.d/ddebs.list</span><br><span class="line">sudo apt-get update</span><br></pre></td></tr></table></figure>
+<h3 id="Xorg服务器"><a href="#Xorg服务器" class="headerlink" title="Xorg服务器"></a>Xorg服务器</h3><p>根据环境，X服务器会跟踪它自己的崩溃，将栈回溯信息转储到<code>/var/log/Xorg.0.log</code>。但是，栈回溯可以被信号处理函数本身修改。如果apport没有捕获崩溃，增加如下的内容到<code>/etc/X11/xorg.conf</code>文件中。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Section &quot;ServerFlags&quot;</span><br><span class="line">        Option &quot;NoTrapSignals&quot; &quot;true&quot;</span><br><span class="line">EndSection</span><br></pre></td></tr></table></figure>
+<p>参考<a href="https://wiki.ubuntu.com/X/Debugging" target="_blank" rel="noopener">X/Debugging</a>了解如何调试Xorg服务的崩溃。</p>
+<h3 id="BugSquad相关信息"><a href="#BugSquad相关信息" class="headerlink" title="BugSquad相关信息"></a>BugSquad相关信息</h3><p>如果你正尝试用<code>apport-retrace</code>来分析一个bug，如果这个bug不是出现在你正在使用的Ubuntu发布版本上，最好的方式就是虚拟化它重现的环境。但是，如果无法虚拟环境，你可以执行如下的例子。假如你正运行<code>Trusty</code>系统，但是崩溃发生在<code>Precise</code>上。</p>
+<ol>
+<li><p>使用如下的命令可以创建一个小型的<code>Precise</code>系统：</p>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo mkdir -p /chroots/precise</span><br><span class="line">sudo debootstrap precise /chroots/precise/</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>构建了系统之后，转到这个微型的<code>Precise</code>系统：</p>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo chroot /chroots/precise</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>编辑<code>/etc/apt/sources/list</code>，添加所有你需要的仓库地址，包括ddeb仓库。</p>
+</li>
+<li><p>在终端中执行如下的命令。</p>
+ <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo apt-get update;</span><br><span class="line">sudo apt-get install gdb apport</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>正常使用<code>apport-retrace</code>即可。</p>
+</li>
+</ol>
+<p>更多关于处理bug报告的<code>Apport</code>可以参考<a href="https://wiki.ubuntu.com/Bugs/ApportRetraces" target="_blank" rel="noopener">Bugs/ApportRetraces</a>。</p>
+<p>By Andy@2018-12-06 20:23:48</p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Ubuntu/">Ubuntu</a><a href="/tags/gdb/">gdb</a><a href="/tags/翻译/">翻译</a>
+  </div>
+
+</div>
+
+
+
+	<div class="article-share" id="share">
+	
+	  <div data-url="https://dbgtech.github.io/2018/12/09/Ubuntu-Debugging-Program-Crash.html" data-title="Ubuntu调试程序崩溃 | DbgTech" data-tsina="" class="share clearfix">
+	  </div>
+	
+	</div>
+
+
+</footer>
+
+   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+
+<div class="next">
+<a href="/2018/11/09/WindowsX64-Wow64-Internals.html"  title="Windows WoW64浅析">
+ <strong>下一篇：</strong><br/> 
+ <span>Windows WoW64浅析
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ <ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#介绍"><span class="toc-number">1.</span> <span class="toc-text">介绍</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#使用自动生成调试崩溃报告回溯程序apport-retrace"><span class="toc-number">2.</span> <span class="toc-text">使用自动生成调试崩溃报告回溯程序apport-retrace</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#手动安装调试符号"><span class="toc-number">3.</span> <span class="toc-text">手动安装调试符号</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#卸载所有的调试符号"><span class="toc-number">4.</span> <span class="toc-text">卸载所有的调试符号</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Xorg服务器"><span class="toc-number">5.</span> <span class="toc-text">Xorg服务器</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#BugSquad相关信息"><span class="toc-number">6.</span> <span class="toc-text">BugSquad相关信息</span></a></li></ol>
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  <div class="linkslist">
+  <p class="asidetitle">专栏</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://dbgtech.github.io/Tools/" target="_blank" title="常用工具">常用工具</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+		  
+			<li><a href="/categories/散记/" title="散记">散记<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/笔记/" title="笔记">笔记<sup>6</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/读书/" title="读书">读书<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/调试/" title="调试">调试<sup>8</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/转载/" title="转载">转载<sup>1</sup></a></li>
+		  
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			
+				<li><a href="/tags/Windbg/" title="Windbg">Windbg<sup>5</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Exception/" title="Exception">Exception<sup>4</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Windows/" title="Windows">Windows<sup>3</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/心情/" title="心情">心情<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/X86汇编/" title="X86汇编">X86汇编<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Markdown/" title="Markdown">Markdown<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Stack-Cookie/" title="Stack Cookie">Stack Cookie<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/time/" title="time">time<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C/C++">C/C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Win10/" title="Win10">Win10<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/UWP/" title="UWP">UWP<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/读书笔记/" title="读书笔记">读书笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C\C++">C\C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/反思/" title="反思">反思<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/实模式/" title="实模式">实模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/保护模式/" title="保护模式">保护模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/运行时库/" title="运行时库">运行时库<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/WSL/" title="WSL">WSL<sup>1</sup></a></li>
+			
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://git-scm.com/book/zh/v2" target="_blank" title="Git">Git</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://hexo.io/zh-cn/docs/" target="_blank" title="Hexo">Hexo</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://36kr.com/" target="_blank" title="36氪">36氪</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://wiki.osdev.org/Expanded_Main_Page" target="_blank" title="OSDev">OSDev</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.reactos.com/" target="_blank" title="ReactOS">ReactOS</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.freebuf.com/" target="_blank" title="FreeBuf">FreeBuf</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.appinn.com/markdown/" target="_blank" title="Makedown">Makedown</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://www.huxiu.com/" target="_blank" title="虎嗅网">虎嗅网</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://bbs.pediy.com/" target="_blank" title="看雪论坛">看雪论坛</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.geekpark.net/" target="_blank" title="极客公园">极客公园</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  
+  <div class="archiveslist">
+    <p class="asidetitle"><a href="/archives">归档</a></p>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/12/">十二月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/11/">十一月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/01/">一月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/12/">十二月 2016</a><span class="archive-list-count">1</span></li></ul>
+  </div>
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+		<p class="copyright">
+		Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Jacman">Jacman</a> © 2018 
+		
+		<a href="/about" target="_blank" title="Andy Guo">Andy Guo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+<script src="/js/jquery.qrcode-0.12.0.min.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+  
+        getSize();
+        if (myWidth >= 1024) {
+          c.click();
+        }
+  
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else{
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  c.click(function(){
+    ta.css('display', 'block').addClass('fadeIn');
+  });
+  o.click(function(){
+    ta.css('display', 'none');
+  });
+  $(window).scroll(function(){
+    ta.css("top",Math.max(140,320-$(this).scrollTop()));
+  });
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<div class="hoverqrcode clearfix"></div>',
+  '<a class="overlay" id="qrcode"></a>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="微信"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="微博"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+
+  $('.hoverqrcode').hide();
+
+  var myWidth = 0;
+  function updatehoverqrcode(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+    var qrsize = myWidth > 1024 ? 200:100;
+    var options = {render: 'image', size: qrsize, fill: '#2ca6cb', text: url, radius: 0.5, quiet: 1};
+    var p = $('.article-share-qrcode').position();
+    $('.hoverqrcode').empty().css('width', qrsize).css('height', qrsize)
+                          .css('left', p.left-qrsize/2+20).css('top', p.top-qrsize-10)
+                          .qrcode(options);
+  };
+  $(window).resize(function(){
+    $('.hoverqrcode').hide();
+  });
+  $('.article-share-qrcode').click(function(){
+    updatehoverqrcode();
+    $('.hoverqrcode').toggle();
+  });
+  $('.article-share-qrcode').hover(function(){}, function(){
+      $('.hoverqrcode').hide();
+  });
+});   
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+<!-- Analytics Begin -->
+
+
+
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "//hm.baidu.com/hm.js?e6d1f421bbc9962127a50488f9ed37d1";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+
+
+
+<!-- Analytics End -->
+
+<!-- Totop Begin -->
+
+	<div id="totop">
+	<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+	</div>
+	<script src="/js/totop.js"></script>
+
+<!-- Totop End -->
+
+<!-- MathJax Begin -->
+<!-- mathjax config similar to math.stackexchange -->
+
+
+<!-- MathJax End -->
+
+<!-- Tiny_search Begin -->
+
+<!-- Tiny_search End -->
+
+  </body>
+</html>
+

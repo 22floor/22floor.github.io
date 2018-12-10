@@ -1,0 +1,1084 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>  
+  <meta charset="UTF-8">
+  
+    <title>Windows异常分发 | DbgTech</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Andy Guo">
+    
+
+    
+    <meta name="description" content="异常定义异常通常是CPU在执行指令时因为检测到预先定义的某个（或多个）条件而产生的同步事件。注意它与中断的区别。  中断通常是有CPU外部的输入输出设备（硬件）所触发的，供外部设备通知CPU”有事情需要处理”，因此又叫做中断请求。中断请求的目的是希望CPU暂时停止执行当前正在执行的程序，转去执行中断请求所对应的中断处理例程。  异常的来源有三种：  程序错误，即当CPU在执行程序指令时遇到操作数有">
+<meta name="keywords" content="Windbg,Exception">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Windows异常分发">
+<meta property="og:url" content="https://dbgtech.github.io/2017/05/21/Windows-Exception-Dispatch.html">
+<meta property="og:site_name" content="DbgTech">
+<meta property="og:description" content="异常定义异常通常是CPU在执行指令时因为检测到预先定义的某个（或多个）条件而产生的同步事件。注意它与中断的区别。  中断通常是有CPU外部的输入输出设备（硬件）所触发的，供外部设备通知CPU”有事情需要处理”，因此又叫做中断请求。中断请求的目的是希望CPU暂时停止执行当前正在执行的程序，转去执行中断请求所对应的中断处理例程。  异常的来源有三种：  程序错误，即当CPU在执行程序指令时遇到操作数有">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="https://dbgtech.github.io/img/2017-06-08-KiDispatchException-DispatchFlow.jpg">
+<meta property="og:updated_time" content="2018-05-19T07:03:13.408Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Windows异常分发">
+<meta name="twitter:description" content="异常定义异常通常是CPU在执行指令时因为检测到预先定义的某个（或多个）条件而产生的同步事件。注意它与中断的区别。  中断通常是有CPU外部的输入输出设备（硬件）所触发的，供外部设备通知CPU”有事情需要处理”，因此又叫做中断请求。中断请求的目的是希望CPU暂时停止执行当前正在执行的程序，转去执行中断请求所对应的中断处理例程。  异常的来源有三种：  程序错误，即当CPU在执行程序指令时遇到操作数有">
+<meta name="twitter:image" content="https://dbgtech.github.io/img/2017-06-08-KiDispatchException-DispatchFlow.jpg">
+
+    
+    <link rel="alternative" href="/atom.xml" title="DbgTech" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+  <body>
+    <header>
+      
+<div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="DbgTech" title="DbgTech"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="DbgTech">DbgTech</a></h1>
+				<h2 class="blog-motto">—— 慢下来，享受思考的小确幸！</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">Home</a></li>
+					
+						<li><a href="/column">Column</a></li>
+					
+						<li><a href="/archives">Archives</a></li>
+					
+						<li><a href="/about">About</a></li>
+					
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+  
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/05/21/Windows-Exception-Dispatch.html" title="Windows异常分发" itemprop="url">Windows异常分发</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-05-21T03:33:32.000Z" itemprop="datePublished"> 发表于 2017-05-21</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			<ol class="toc"><li class="toc-item toc-level-4"><a class="toc-link" href="#异常定义"><span class="toc-number">1.</span> <span class="toc-text">异常定义</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#异常分发"><span class="toc-number">2.</span> <span class="toc-text">异常分发</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#实模式"><span class="toc-number">2.1.</span> <span class="toc-text">实模式</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#保护模式"><span class="toc-number">2.2.</span> <span class="toc-text">保护模式</span></a></li></ol></li></ol>
+		
+		</div>
+		
+		<h4 id="异常定义"><a href="#异常定义" class="headerlink" title="异常定义"></a>异常定义</h4><p>异常通常是CPU在执行指令时因为检测到预先定义的某个（或多个）条件而产生的同步事件。注意它与中断的区别。</p>
+<blockquote>
+<p>中断通常是有CPU外部的输入输出设备（硬件）所触发的，供外部设备通知CPU”有事情需要处理”，因此又叫做中断请求。<br>中断请求的目的是希望CPU暂时停止执行当前正在执行的程序，转去执行中断请求所对应的中断处理例程。</p>
+</blockquote>
+<p>异常的来源有三种：</p>
+<ol>
+<li>程序错误，即当CPU在执行程序指令时遇到操作数有错误或检测到指令规范中定义的非法情况。如除零操作，用户模式下的特权指令。</li>
+<li>某些特殊指令，即这些指令的预期就是产生相应的异常。如INT3指令。</li>
+<li>奔腾CPU引入的机器检查异常，即当CPU执行指令期间检测到CPU内部或外部的硬件错误。</li>
+</ol>
+<p>异常进行分类，也可以分为三类:</p>
+<ol>
+<li>错误，导致错误类异常的情况通常可以被纠正。比如内存页错误。</li>
+<li>陷阱类异常，CPU报告陷阱类异常时，异常指令通常已经执行完毕，压入栈的CS/EIP值为异常返回后要执行指令。</li>
+<li>终止类异常，用来报告严重的错误，硬件错误，系统表中非法值等，这类异常不允许恢复执行。</li>
+</ol>
+<a id="more"></a>
+<table>
+<thead>
+<tr>
+<th>向量</th>
+<th>助记</th>
+<th>描述</th>
+<th>类型</th>
+<th>错误代码</th>
+<th>来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>#DE</td>
+<td>除零错误</td>
+<td>错误</td>
+<td>无</td>
+<td>div或idiv指令</td>
+</tr>
+<tr>
+<td>1</td>
+<td>#DB</td>
+<td>调试异常，用于软件调试</td>
+<td>错误/陷阱</td>
+<td>无</td>
+<td>任何代码或数据引用</td>
+</tr>
+<tr>
+<td>2</td>
+<td></td>
+<td>NMI中断</td>
+<td>中断</td>
+<td>无</td>
+<td>不可屏蔽的外部中断</td>
+</tr>
+<tr>
+<td>3</td>
+<td>#BP</td>
+<td>断点</td>
+<td>陷阱</td>
+<td>无</td>
+<td>int3指令</td>
+</tr>
+<tr>
+<td>4</td>
+<td>#OF</td>
+<td>溢出</td>
+<td>陷阱</td>
+<td>无</td>
+<td>into指令</td>
+</tr>
+<tr>
+<td>5</td>
+<td>#BR</td>
+<td>数组越界</td>
+<td>错误</td>
+<td>无</td>
+<td>bound指令</td>
+</tr>
+<tr>
+<td>6</td>
+<td>#UD</td>
+<td>无效指令（没有定义的指令）</td>
+<td>错误</td>
+<td>无</td>
+<td>ud2指令, 或保留的指令</td>
+</tr>
+<tr>
+<td>7</td>
+<td>#NM</td>
+<td>数学协处理器不存在或不可用</td>
+<td>错误</td>
+<td>无</td>
+<td>浮点或者wait/fwait指令</td>
+</tr>
+<tr>
+<td>8</td>
+<td>#DF</td>
+<td>双重错误</td>
+<td>终止</td>
+<td>有(0)</td>
+<td>任何会产生异常的指令, NMI或者硬件中断</td>
+</tr>
+<tr>
+<td>9</td>
+<td>#MF</td>
+<td>协处理器执行浮点运算时, 至少有两个操作数不在一个段内(跨段)</td>
+<td>错误</td>
+<td>无</td>
+<td>浮点指令</td>
+</tr>
+<tr>
+<td>10</td>
+<td>#TS</td>
+<td>无效TSS</td>
+<td>错误</td>
+<td>有</td>
+<td>任务切换或访问TSS</td>
+</tr>
+<tr>
+<td>11</td>
+<td>#NP</td>
+<td>段不存在</td>
+<td>错误</td>
+<td>有</td>
+<td>加载段寄存器或者访问系统段</td>
+</tr>
+<tr>
+<td>12</td>
+<td>#SS</td>
+<td>栈段故障</td>
+<td>错误</td>
+<td>有</td>
+<td>栈操作或者加载段寄存器SS</td>
+</tr>
+<tr>
+<td>13</td>
+<td>#GP</td>
+<td>常规保护</td>
+<td>错误</td>
+<td>有</td>
+<td>任何内存引用或其他保护异常</td>
+</tr>
+<tr>
+<td>14</td>
+<td>#PF</td>
+<td>页故障</td>
+<td>错误</td>
+<td>有</td>
+<td>任何内存引用</td>
+</tr>
+<tr>
+<td>15</td>
+<td>-</td>
+<td></td>
+<td>由Intel处理器保留，不能使用</td>
+<td>无</td>
+<td>-</td>
+</tr>
+<tr>
+<td>16</td>
+<td>#MF</td>
+<td>x87 FPU(浮点处理单元)浮点处理错误</td>
+<td>错误</td>
+<td>无</td>
+<td>x87 FPU浮点指令或wait/fwait指令</td>
+</tr>
+<tr>
+<td>17</td>
+<td>#AC</td>
+<td>对齐检查</td>
+<td>错误</td>
+<td>有(0)</td>
+<td>对内存数据引用</td>
+</tr>
+<tr>
+<td>18</td>
+<td>#MC</td>
+<td>机器检查</td>
+<td>终止</td>
+<td>无</td>
+<td>错误代码(如果有的话)和来源是处理器型号相关的</td>
+</tr>
+<tr>
+<td>19</td>
+<td>#XM</td>
+<td>SIMD(单指令多数据)浮点异常</td>
+<td>错误</td>
+<td>无</td>
+<td>sse/sse2/sse3浮点指令</td>
+</tr>
+<tr>
+<td>20~31</td>
+<td></td>
+<td>Intel公司保留, 建议不要使用</td>
+<td>保留</td>
+<td></td>
+</tr>
+<tr>
+<td>32~255</td>
+<td>用户自定义的中断</td>
+<td>中断</td>
+<td>外部中断, 或者int n指令</td>
+<td></td>
+<td>来自INTR的外部中断或INT n指令</td>
+</tr>
+</tbody>
+</table>
+<h4 id="异常分发"><a href="#异常分发" class="headerlink" title="异常分发"></a>异常分发</h4><h5 id="实模式"><a href="#实模式" class="headerlink" title="实模式"></a>实模式</h5><p>对于实模式下，会在地址空间的0x00000000处设置一个中断向量表（Interrupt Vector Table），大小为1K，每一个中断向量占据4个字节；高两字节用于段地址（CS），低两字节用于偏移地址（IP）；这样中断向量表就是256个表项，正好对应CPU的256个中断向量。当发生中断后，CPU根据中断号（IVT + Num * 4）查找中断向量表找到中断处理函数，然后就可以跳转到对应的处理函数执行代码。</p>
+<h5 id="保护模式"><a href="#保护模式" class="headerlink" title="保护模式"></a>保护模式</h5><p>在保护模式下，地址空间变为平坦模式。基于段寻址方式，通过GDT/LDT/IDT等来实现代码寻址，跳转，权限级别切换，以及中断和异常处理。</p>
+<p>IDT即是保护模式下实现中断和异常的处理关键所在。IDT也是一张位于物理内存的线性表，共有256项（对应CPU支持最大256个中断向量）。IDT表总长度为4096个字节，每个表项是8字节（即一个中断描述符）。IDT表中的项分为三类，任务门，中断门，陷阱门。任务门由于任务切换，目前Windows上只有双重错误和不可屏蔽中断使用的是任务门。中断门用于描述中断处理例程入口。陷阱们描述符用于描述异常处理例程入口。</p>
+<p>如下罚抄一遍《软件调试》中的IDT表设置一览（Vista 32位）</p>
+<table>
+<thead>
+<tr>
+<th>向量号</th>
+<th>门类型</th>
+<th>处理例程/TSS选择子</th>
+<th>中断/异常</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>00</td>
+<td>中断</td>
+<td>nt!KiTrap00</td>
+<td>除零错误</td>
+<td></td>
+</tr>
+<tr>
+<td>01</td>
+<td>中断</td>
+<td>nt!KiTrap01</td>
+<td>调试异常</td>
+<td></td>
+</tr>
+<tr>
+<td>02</td>
+<td>任务</td>
+<td>0x0058</td>
+<td>不可屏蔽中断（NMI）</td>
+<td>切换到系统线程处理该中断，使用的函数是KiTrap02</td>
+</tr>
+<tr>
+<td>03</td>
+<td>中断</td>
+<td>nt!KiTrap03</td>
+<td>断点</td>
+<td></td>
+</tr>
+<tr>
+<td>04</td>
+<td>中断</td>
+<td>nt!KiTrap04</td>
+<td>溢出</td>
+<td></td>
+</tr>
+<tr>
+<td>05</td>
+<td>中断</td>
+<td>nt!KiTrap05</td>
+<td>数组越界</td>
+<td></td>
+</tr>
+<tr>
+<td>06</td>
+<td>中断</td>
+<td>nt!KiTrap06</td>
+<td>无效指令</td>
+<td></td>
+</tr>
+<tr>
+<td>07</td>
+<td>中断</td>
+<td>nt!KiTrap07</td>
+<td>数学协处理器不存在或不可用</td>
+<td></td>
+</tr>
+<tr>
+<td>08</td>
+<td>任务</td>
+<td>0x0050</td>
+<td>双重错误（Double Fault）</td>
+<td>切换到系统线程处理改异常，执行KiTrap08</td>
+</tr>
+<tr>
+<td>09</td>
+<td>中断</td>
+<td>nt!KiTrap09</td>
+<td>协处理器段溢出</td>
+<td></td>
+</tr>
+<tr>
+<td>0a</td>
+<td>中断</td>
+<td>nt!KiTrap0a</td>
+<td>无效的TSS</td>
+<td></td>
+</tr>
+<tr>
+<td>0b</td>
+<td></td>
+<td>nt!KiTrap0b</td>
+<td>段不存在</td>
+<td></td>
+</tr>
+<tr>
+<td>0c</td>
+<td></td>
+<td>nt!KiTrap0c</td>
+<td>栈段错误</td>
+<td></td>
+</tr>
+<tr>
+<td>0d</td>
+<td></td>
+<td>nt!KiTrap0d</td>
+<td>一般保护错误</td>
+<td></td>
+</tr>
+<tr>
+<td>0e</td>
+<td></td>
+<td>nt!KiTrap0e</td>
+<td>页错误</td>
+<td></td>
+</tr>
+<tr>
+<td>0f</td>
+<td></td>
+<td>nt!KiTrap0f</td>
+<td>保留</td>
+<td></td>
+</tr>
+<tr>
+<td>10</td>
+<td></td>
+<td>nt!KiTrap10</td>
+<td>浮点错误</td>
+<td></td>
+</tr>
+<tr>
+<td>11</td>
+<td></td>
+<td>nt!KiTrap11</td>
+<td>内存错误</td>
+<td></td>
+</tr>
+<tr>
+<td>12</td>
+<td></td>
+<td>nt!KiTrap12</td>
+<td>机器检查</td>
+<td></td>
+</tr>
+<tr>
+<td>13</td>
+<td></td>
+<td>nt!KiTrap13</td>
+<td>SIMD浮点错误</td>
+<td></td>
+</tr>
+<tr>
+<td>14~1f</td>
+<td></td>
+<td></td>
+<td>保留</td>
+<td>KiTrap0F会引发0x7F号蓝屏</td>
+</tr>
+<tr>
+<td>20~29</td>
+<td>00</td>
+<td>NULL</td>
+<td></td>
+<td>（未使用）</td>
+</tr>
+<tr>
+<td>2a</td>
+<td></td>
+<td>nt!KiGetTickCount</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>2b</td>
+<td></td>
+<td>nt!KiCallbackReturn</td>
+<td></td>
+<td>从逆向调用返回</td>
+</tr>
+<tr>
+<td>2c</td>
+<td></td>
+<td>nt!KiRaiseAssertion</td>
+<td></td>
+<td>断言</td>
+</tr>
+<tr>
+<td>2d</td>
+<td></td>
+<td>nt!KiDebugService</td>
+<td></td>
+<td>调试服务</td>
+</tr>
+<tr>
+<td>2e</td>
+<td></td>
+<td>nt!KiSystemService</td>
+<td></td>
+<td>系统服务</td>
+</tr>
+<tr>
+<td>2f</td>
+<td></td>
+<td>nt!KiTrap0F</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>30</td>
+<td></td>
+<td>hal!Halp8254ClockInterrupt</td>
+<td>IRQ0</td>
+<td>时钟中断</td>
+</tr>
+<tr>
+<td>31~3F</td>
+<td></td>
+<td>驱动程序通过KINTERRUPT结构注册的处理例程</td>
+<td>IRQ1~IRQ15</td>
+<td>其他硬件设备的中断</td>
+</tr>
+<tr>
+<td>40~FD</td>
+<td></td>
+<td>nt!KiUnexpectedInterruptX</td>
+<td>N/A</td>
+<td>没有使用</td>
+</tr>
+</tbody>
+</table>
+<p>Windows对于异常的处理采用了统一的方式，无论是CPU产生的异常，还是通过系统API抛出的异常（比如RaiseException）。这里以XP系统为例，大致过一下Windows的异常处理过程。以一般保护错误为例，即0x0D号异常，相应的异常处理函数为nt!KiTrap0D</p>
+<p>nt!KiTrap0D 中对一些特殊的情况做处理，比如V86模式；根据异常之前的CPU所处的模式，分别处理。当处理掉一些特殊情况后，函数最终会调用到nt!CommonDispatchException()函数中，对这个函数的调用不会返回。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br></pre></td><td class="code"><pre><span class="line">nt!CommonDispatchException:</span><br><span class="line">805430a8 83ec50          sub     esp,50h</span><br><span class="line">805430ab 890424          mov     dword ptr [esp],eax            // 异常码</span><br><span class="line">805430ae 33c0            xor     eax,eax</span><br><span class="line">805430b0 89442404        mov     dword ptr [esp+4],eax          //</span><br><span class="line">805430b4 89442408        mov     dword ptr [esp+8],eax          //</span><br><span class="line">805430b8 895c240c        mov     dword ptr [esp+0Ch],ebx        // 异常地址</span><br><span class="line">805430bc 894c2410        mov     dword ptr [esp+10h],ecx        // 参数个数</span><br><span class="line">805430c0 83f900          cmp     ecx,0</span><br><span class="line">805430c3 740c            je      nt!CommonDispatchException+0x29 (805430d1)</span><br><span class="line">805430c5 8d5c2414        lea     ebx,[esp+14h]</span><br><span class="line">805430c9 8913            mov     dword ptr [ebx],edx            // 三个参数</span><br><span class="line">805430cb 897304          mov     dword ptr [ebx+4],esi          //</span><br><span class="line">805430ce 897b08          mov     dword ptr [ebx+8],edi          //</span><br><span class="line">805430d1 8bcc            mov     ecx,esp                        // 构造了 _EXCEPTION_RECORD 结构体（见下面结构体解析）</span><br><span class="line">805430d3 f7457000000200  test    dword ptr [ebp+70h],20000h     // 判断异常之前的CPU所处模式</span><br><span class="line">805430da 7407            je      nt!CommonDispatchException+0x3b (805430e3)</span><br><span class="line">805430dc b8ffff0000      mov     eax,0FFFFh                     // Ring3</span><br><span class="line">805430e1 eb03            jmp     nt!CommonDispatchException+0x3e (805430e6)</span><br><span class="line">805430e3 8b456c          mov     eax,dword ptr [ebp+6Ch]        // _KTRAP_FRAME + 0x6C，即之前的CS寄存器</span><br><span class="line">805430e6 83e001          and     eax,1</span><br><span class="line">805430e9 6a01            push    1</span><br><span class="line">805430eb 50              push    eax</span><br><span class="line">805430ec 55              push    ebp</span><br><span class="line">805430ed 6a00            push    0</span><br><span class="line">805430ef 51              push    ecx</span><br><span class="line">805430f0 e89dc3fbff      call    nt!KiDispatchException (804ff492)  // 函数原型见下面代码段</span><br><span class="line">805430f5 8be5            mov     esp,ebp</span><br><span class="line">805430f7 e920feffff      jmp     nt!KiExceptionExit (80542f1c)      // 异常分发完毕，直接跳转到异常退出函数，退出异常</span><br><span class="line">805430fc 5b              pop     ebx</span><br><span class="line">805430fd 648b3d04000000  mov     edi,dword ptr fs:[4]</span><br><span class="line">80543104 81ef00010000    sub     edi,100h</span><br><span class="line">8054310a 8bf4            mov     esi,esp</span><br><span class="line">8054310c 8be7            mov     esp,edi</span><br><span class="line">8054310e 8bef            mov     ebp,edi</span><br><span class="line">80543110 53              push    ebx</span><br><span class="line">80543111 b91d000000      mov     ecx,1Dh</span><br><span class="line">80543116 f3a5            rep movs dword ptr es:[edi],dword ptr [esi]</span><br><span class="line">80543118 8bce            mov     ecx,esi</span><br><span class="line">8054311a 648b3d04000000  mov     edi,dword ptr fs:[4]</span><br><span class="line">80543121 81ef8c000000    sub     edi,8Ch</span><br><span class="line">80543127 8bdf            mov     ebx,edi</span><br><span class="line">80543129 2bcf            sub     ecx,edi</span><br><span class="line">8054312b 8bf5            mov     esi,ebp</span><br><span class="line">8054312d c1e902          shr     ecx,2</span><br><span class="line">80543130 f3a5            rep movs dword ptr es:[edi],dword ptr [esi]</span><br><span class="line">80543132 8b4544          mov     eax,dword ptr [ebp+44h]</span><br><span class="line">80543135 894344          mov     dword ptr [ebx+44h],eax</span><br><span class="line">80543138 c6434801        mov     byte ptr [ebx+48h],1</span><br><span class="line">8054313c 895d60          mov     dword ptr [ebp+60h],ebx</span><br><span class="line">8054313f c7456844285480  mov     dword ptr [ebp+68h],offset nt!KiServiceExit2 (80542844)</span><br><span class="line">80543146 c7453823000000  mov     dword ptr [ebp+38h],23h</span><br><span class="line">8054314d c7453423000000  mov     dword ptr [ebp+34h],23h</span><br><span class="line">80543154 c7455030000000  mov     dword ptr [ebp+50h],30h</span><br><span class="line">8054315b 814d7000020000  or      dword ptr [ebp+70h],200h</span><br><span class="line">80543162 c3              ret</span><br></pre></td></tr></table></figure>
+<p>如下是几个结构体的内部定义，结构体EXCEPTION_RECORD记录了异常信息；KTRAP_FRAME记录了陷阱帧内容，是发生异常时的CPU环境。后面我们会用到这个结构体，先在这里了解一下。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">nt!_EXCEPTION_RECORD</span><br><span class="line">   +0x000 ExceptionCode    : Int4B                      // 异常代码</span><br><span class="line">   +0x004 ExceptionFlags   : Uint4B                     // 异常标记</span><br><span class="line">   +0x008 ExceptionRecord  : Ptr32 _EXCEPTION_RECORD    // 相关的另一个异常</span><br><span class="line">   +0x00c ExceptionAddress : Ptr32 Void                 // 发生异常的地址</span><br><span class="line">   +0x010 NumberParameters : Uint4B                     // 参数数组中元素的个数</span><br><span class="line">   +0x014 ExceptionInformation : [15] Uint4B            // 参数数组</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line">nt!_KTRAP_FRAME</span><br><span class="line">   +0x000 DbgEbp           : Uint4B</span><br><span class="line">   +0x004 DbgEip           : Uint4B</span><br><span class="line">   +0x008 DbgArgMark       : Uint4B</span><br><span class="line">   +0x00c DbgArgPointer    : Uint4B</span><br><span class="line">   +0x010 TempSegCs        : Uint4B</span><br><span class="line">   +0x014 TempEsp          : Uint4B</span><br><span class="line">   +0x018 Dr0              : Uint4B</span><br><span class="line">   +0x01c Dr1              : Uint4B</span><br><span class="line">   +0x020 Dr2              : Uint4B</span><br><span class="line">   +0x024 Dr3              : Uint4B</span><br><span class="line">   +0x028 Dr6              : Uint4B</span><br><span class="line">   +0x02c Dr7              : Uint4B</span><br><span class="line">   +0x030 SegGs            : Uint4B</span><br><span class="line">   +0x034 SegEs            : Uint4B</span><br><span class="line">   +0x038 SegDs            : Uint4B</span><br><span class="line">   +0x03c Edx              : Uint4B</span><br><span class="line">   +0x040 Ecx              : Uint4B</span><br><span class="line">   +0x044 Eax              : Uint4B</span><br><span class="line">   +0x048 PreviousPreviousMode : Uint4B</span><br><span class="line">   +0x04c ExceptionList    : Ptr32 _EXCEPTION_REGISTRATION_RECORD</span><br><span class="line">   +0x050 SegFs            : Uint4B</span><br><span class="line">   +0x054 Edi              : Uint4B</span><br><span class="line">   +0x058 Esi              : Uint4B</span><br><span class="line">   +0x05c Ebx              : Uint4B</span><br><span class="line">   +0x060 Ebp              : Uint4B</span><br><span class="line">   +0x064 ErrCode          : Uint4B</span><br><span class="line">   +0x068 Eip              : Uint4B</span><br><span class="line">   +0x06c SegCs            : Uint4B</span><br><span class="line">   +0x070 EFlags           : Uint4B</span><br><span class="line">   +0x074 HardwareEsp      : Uint4B</span><br><span class="line">   +0x078 HardwareSegSs    : Uint4B</span><br><span class="line">   +0x07c V86Es            : Uint4B</span><br><span class="line">   +0x080 V86Ds            : Uint4B</span><br><span class="line">   +0x084 V86Fs            : Uint4B</span><br><span class="line">   +0x088 V86Gs            : Uint4B</span><br></pre></td></tr></table></figure>
+<p>nt!KiDispatchException()用于异常的分发，下面简单分析一下该函数的执行过程。代码不是完整的KiDispatchException的代码，删除了一部分无关的细支末节，在代码中添加注释说明函数过程，不再对函数进行分析。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br><span class="line">142</span><br><span class="line">143</span><br><span class="line">144</span><br><span class="line">145</span><br><span class="line">146</span><br><span class="line">147</span><br><span class="line">148</span><br><span class="line">149</span><br><span class="line">150</span><br><span class="line">151</span><br><span class="line">152</span><br><span class="line">153</span><br><span class="line">154</span><br><span class="line">155</span><br><span class="line">156</span><br><span class="line">157</span><br><span class="line">158</span><br><span class="line">159</span><br><span class="line">160</span><br><span class="line">161</span><br><span class="line">162</span><br><span class="line">163</span><br><span class="line">164</span><br><span class="line">165</span><br><span class="line">166</span><br><span class="line">167</span><br><span class="line">168</span><br></pre></td><td class="code"><pre><span class="line">VOID</span><br><span class="line">KiDispatchException (</span><br><span class="line">    IN PEXCEPTION_RECORD ExceptionRecord,</span><br><span class="line">    IN PKEXCEPTION_FRAME ExceptionFrame,</span><br><span class="line">    IN PKTRAP_FRAME TrapFrame,</span><br><span class="line">    IN KPROCESSOR_MODE PreviousMode,</span><br><span class="line">    IN BOOLEAN FirstChance)</span><br><span class="line">&#123;</span><br><span class="line">    CONTEXT ContextFrame;</span><br><span class="line">    EXCEPTION_RECORD ExceptionRecord1, ExceptionRecord2;</span><br><span class="line">    LONG Length;</span><br><span class="line">    ULONG UserStack1;</span><br><span class="line">    ULONG UserStack2;</span><br><span class="line">    KeGetCurrentPrcb()-&gt;KeExceptionDispatchCount += 1;</span><br><span class="line">    ContextFrame.ContextFlags = CONTEXT_FULL | CONTEXT_DEBUG_REGISTERS;</span><br><span class="line">    if ((PreviousMode == UserMode) || KdDebuggerEnabled) &#123;</span><br><span class="line">        ContextFrame.ContextFlags |= CONTEXT_FLOATING_POINT;</span><br><span class="line">        if (KeI386XMMIPresent) &#123;</span><br><span class="line">            ContextFrame.ContextFlags |= CONTEXT_EXTENDED_REGISTERS;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    KeContextFromKframes(TrapFrame, ExceptionFrame, &amp;ContextFrame);     // 填充context结构的寄存器等内容</span><br><span class="line">    switch (ExceptionRecord-&gt;ExceptionCode) &#123;</span><br><span class="line">        case STATUS_BREAKPOINT:</span><br><span class="line">            ContextFrame.Eip--;                                         // 断点的话，eip退后一个字节，可以将断点还原接着执行</span><br><span class="line">            break;</span><br><span class="line">        case KI_EXCEPTION_ACCESS_VIOLATION:</span><br><span class="line">            ExceptionRecord-&gt;ExceptionCode = STATUS_ACCESS_VIOLATION;</span><br><span class="line">            if (PreviousMode == UserMode) &#123;                             // 用户模式下检查是否是thunk问题</span><br><span class="line">                if (KiCheckForAtlThunk(ExceptionRecord,&amp;ContextFrame) != FALSE) &#123;</span><br><span class="line">                    goto Handled1;</span><br><span class="line">                &#125;</span><br><span class="line">                if ((SharedUserData-&gt;ProcessorFeatures[PF_NX_ENABLED] == TRUE) &amp;&amp;</span><br><span class="line">                    (ExceptionRecord-&gt;ExceptionInformation [0] == EXCEPTION_EXECUTE_FAULT)) &#123;</span><br><span class="line">                    if (((KeFeatureBits &amp; KF_GLOBAL_32BIT_EXECUTE) != 0) ||</span><br><span class="line">                        (PsGetCurrentProcess()-&gt;Pcb.Flags.ExecuteEnable != 0) ||</span><br><span class="line">                        (((KeFeatureBits &amp; KF_GLOBAL_32BIT_NOEXECUTE) == 0) &amp;&amp;</span><br><span class="line">                         (PsGetCurrentProcess()-&gt;Pcb.Flags.ExecuteDisable == 0))) &#123;</span><br><span class="line">                        ExceptionRecord-&gt;ExceptionInformation [0] = 0;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            break;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    if (PreviousMode == KernelMode)              // 内核模式</span><br><span class="line">    &#123;</span><br><span class="line">        if (FirstChance == TRUE) &#123;</span><br><span class="line">            if ((KiDebugRoutine != NULL) &amp;&amp;      // 第一次错误 交由调试器处理</span><br><span class="line">               (((KiDebugRoutine) (TrapFrame,</span><br><span class="line">                                   ExceptionFrame,</span><br><span class="line">                                   ExceptionRecord,</span><br><span class="line">                                   &amp;ContextFrame,</span><br><span class="line">                                   PreviousMode,</span><br><span class="line">                                   FALSE)) != FALSE)) &#123;</span><br><span class="line">                goto Handled1;</span><br><span class="line">            &#125;</span><br><span class="line">            // 调试器无法处理，尝试找到一个异常函数</span><br><span class="line">            if (RtlDispatchException(ExceptionRecord, &amp;ContextFrame) == TRUE) &#123;</span><br><span class="line">                goto Handled1;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        // 第二次机会，直接发给调试器去处理</span><br><span class="line">        if ((KiDebugRoutine != NULL) &amp;&amp;</span><br><span class="line">            (((KiDebugRoutine) (TrapFrame,</span><br><span class="line">                                ExceptionFrame,</span><br><span class="line">                                ExceptionRecord,</span><br><span class="line">                                &amp;ContextFrame,</span><br><span class="line">                                PreviousMode,</span><br><span class="line">                                TRUE)) != FALSE)) &#123;</span><br><span class="line">            goto Handled1;</span><br><span class="line">        &#125;</span><br><span class="line">        KeBugCheckEx(           // 处理不了直接 KeBugCheckEx，即蓝屏了</span><br><span class="line">            KERNEL_MODE_EXCEPTION_NOT_HANDLED,</span><br><span class="line">            ExceptionRecord-&gt;ExceptionCode,</span><br><span class="line">            (ULONG)ExceptionRecord-&gt;ExceptionAddress,</span><br><span class="line">            (ULONG)TrapFrame,</span><br><span class="line">            0);</span><br><span class="line">    &#125; else &#123;</span><br><span class="line">        if (FirstChance == TRUE) &#123;          // 用户模式下的异常</span><br><span class="line">            if ((KiDebugRoutine != NULL) &amp;&amp; // 用户模式下 有内核调试器，没有用户调试器</span><br><span class="line">                ((PsGetCurrentProcess()-&gt;DebugPort == NULL &amp;&amp;</span><br><span class="line">                  !KdIgnoreUmExceptions) ||</span><br><span class="line">                 (KdIsThisAKdTrap(ExceptionRecord, &amp;ContextFrame, UserMode)))) &#123;</span><br><span class="line">                if ((((KiDebugRoutine) (TrapFrame,</span><br><span class="line">                                        ExceptionFrame,</span><br><span class="line">                                        ExceptionRecord,</span><br><span class="line">                                        &amp;ContextFrame,</span><br><span class="line">                                        PreviousMode,</span><br><span class="line">                                        FALSE)) != FALSE)) &#123;</span><br><span class="line">                    goto Handled1;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            // 尝试发送数据用户层调试器</span><br><span class="line">            if (DbgkForwardException(ExceptionRecord, TRUE, FALSE)) &#123;</span><br><span class="line">                goto Handled2;</span><br><span class="line">            &#125;</span><br><span class="line">            ExceptionRecord1.ExceptionCode = 0; // satisfy no_opt compilation</span><br><span class="line">        repeat:</span><br><span class="line">            try &#123;</span><br><span class="line">                if (TrapFrame-&gt;HardwareSegSs != (KGDT_R3_DATA | RPL_MASK) ||</span><br><span class="line">                    TrapFrame-&gt;EFlags &amp; EFLAGS_V86_MASK ) &#123;</span><br><span class="line">                    ExceptionRecord2.ExceptionCode = STATUS_ACCESS_VIOLATION;</span><br><span class="line">                    ExceptionRecord2.ExceptionFlags = 0;</span><br><span class="line">                    ExceptionRecord2.NumberParameters = 0;</span><br><span class="line">                    ExRaiseException(&amp;ExceptionRecord2);</span><br><span class="line">                &#125;</span><br><span class="line">                UserStack1 = (ContextFrame.Esp &amp; ~CONTEXT_ROUND) - CONTEXT_ALIGNED_SIZE;  // CONTEXT结构入用户栈</span><br><span class="line">                ProbeForWrite((PCHAR)UserStack1, CONTEXT_ALIGNED_SIZE, CONTEXT_ALIGN);</span><br><span class="line">                RtlCopyMemory((PULONG)UserStack1, &amp;ContextFrame, sizeof(CONTEXT));        // 将信息写入到用户态线程栈上</span><br><span class="line">                Length = (sizeof(EXCEPTION_RECORD) - (EXCEPTION_MAXIMUM_PARAMETERS -</span><br><span class="line">                         ExceptionRecord-&gt;NumberParameters) * sizeof(ULONG) +3) &amp;</span><br><span class="line">                         (~3);</span><br><span class="line">                UserStack2 = UserStack1 - Length;       // 异常记录块入栈</span><br><span class="line">                ProbeForWrite((PCHAR)(UserStack2 - 8), Length + 8, sizeof(ULONG));</span><br><span class="line">                RtlCopyMemory((PULONG)UserStack2, ExceptionRecord, Length);               // 异常记录 结构体内容</span><br><span class="line">                *(PULONG)(UserStack2 - sizeof(ULONG)) = UserStack1;</span><br><span class="line">                *(PULONG)(UserStack2 - 2*sizeof(ULONG)) = UserStack2;</span><br><span class="line">                //</span><br><span class="line">                // 更新TrapFrame</span><br><span class="line">                //</span><br><span class="line">                KiSegSsToTrapFrame(TrapFrame, KGDT_R3_DATA);</span><br><span class="line">                KiEspToTrapFrame(TrapFrame, (UserStack2 - sizeof(ULONG)*2));</span><br><span class="line">                TrapFrame-&gt;SegCs = SANITIZE_SEG(KGDT_R3_CODE, PreviousMode);</span><br><span class="line">                TrapFrame-&gt;SegDs = SANITIZE_SEG(KGDT_R3_DATA, PreviousMode);</span><br><span class="line">                TrapFrame-&gt;SegEs = SANITIZE_SEG(KGDT_R3_DATA, PreviousMode);</span><br><span class="line">                TrapFrame-&gt;SegFs = SANITIZE_SEG(KGDT_R3_TEB, PreviousMode);</span><br><span class="line">                TrapFrame-&gt;SegGs = 0;</span><br><span class="line"></span><br><span class="line">                //设置Eip是ntdll中的KiUserExceptionDispatcher，ntdll试图分发给异常处理器，如果异常被处理则可以继续执行</span><br><span class="line">                //否则 NtRaiseException 继续进入内核 第二次处理</span><br><span class="line">                TrapFrame-&gt;Eip = (ULONG)KeUserExceptionDispatcher;</span><br><span class="line">                return;</span><br><span class="line">            &#125; except (KiCopyInformation(&amp;ExceptionRecord1,</span><br><span class="line">                        (GetExceptionInformation())-&gt;ExceptionRecord)) &#123;</span><br><span class="line">                if (ExceptionRecord1.ExceptionCode == STATUS_STACK_OVERFLOW) &#123;</span><br><span class="line">                    ExceptionRecord1.ExceptionAddress = ExceptionRecord-&gt;ExceptionAddress;</span><br><span class="line">                    RtlCopyMemory((PVOID)ExceptionRecord,</span><br><span class="line">                                  &amp;ExceptionRecord1, sizeof(EXCEPTION_RECORD));</span><br><span class="line">                    goto repeat;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        //</span><br><span class="line">        // 第二次处理异常 进程调试器处理异常/win32子系统处理异常 如果还是不能处理 进程终止 bugcheck</span><br><span class="line">        //</span><br><span class="line">        if (DbgkForwardException(ExceptionRecord, TRUE, TRUE)) &#123;</span><br><span class="line">            goto Handled2;</span><br><span class="line">        &#125; else if (DbgkForwardException(ExceptionRecord, FALSE, TRUE)) &#123;</span><br><span class="line">            goto Handled2;</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">            ZwTerminateProcess(NtCurrentProcess(), ExceptionRecord-&gt;ExceptionCode);</span><br><span class="line">            KeBugCheckEx(</span><br><span class="line">                KERNEL_MODE_EXCEPTION_NOT_HANDLED,</span><br><span class="line">                ExceptionRecord-&gt;ExceptionCode,</span><br><span class="line">                (ULONG)ExceptionRecord-&gt;ExceptionAddress,</span><br><span class="line">                (ULONG)TrapFrame,</span><br><span class="line">                0);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">Handled1:</span><br><span class="line">    // 已经解决，把 ContextFrame移动到陷阱帧</span><br><span class="line">    KeContextToKframes(TrapFrame, ExceptionFrame, &amp;ContextFrame, ContextFrame.ContextFlags, PreviousMode);  </span><br><span class="line"></span><br><span class="line">Handled2:</span><br><span class="line">    return;     // 被调试器或者子系统解决的，不同更新trap帧直接返回</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>从上面的函数可以看出，对于内核模式，首先会看是否系统正在被调试（KiDebugRoutine变量不为空），如果被调试，则调用 KiDebugRoutine，它实际指向的是nt!KdpTrap，该函数完成内核调试的后续内容（这里不再继续介绍，以后有机会单独学习一下）；否则调用RtlDispatchException()函数进行异常分发。分发异常后依然处理不了当前的异常，则会再次抛出异常，那么系统则进入第二次机会的异常处理，再次调用KiDebugRoutine所指向的函数。如果没有调试，则直接调用 KeBugCheckEx()发起蓝屏请求。</p>
+<p>对于用户模式和内核的流程类似。如果没有用户模式的调试器，但是存在系统内核正在被调试，则直接调用KiDebugRoutine指向函数，通知内核调试器。如果没有内核调试器，则调用 DbgkForwardException()尝试将异常分发给用户层调试器。将异常分发给用户层调试器失败后，则准备将异常在用户模式下进行分发。这时则要将异常相关的信息告知Ring3层，所以将CONTEXT / ExceptionRecord复制到用户栈中，同时对TrapFrame信息进行调整，使得CPU回到Ring3层时从 KeUserExceptionDispatcher()函数开始执行（该函数后面分析）。如果用户层异常分发时判断有调试器，且调试器不处理异常，则进入第二次异常处理，同样首先尝试分发给调试器，如果调试器依然不处理，则最终将调用ZwTerminateProcess()终结进程。</p>
+<p>从上面可以看到，Ring3和Ring0的异常分发大同小异。首先会尝试分发给调试器，一旦异常被分发给了调试器，则进程会被挂起（调试器设置为不处理的异常除外）。分发给调试之后就会进行将异常分发给异常处理器。如果异常处理器不处理，则进入了第二轮的异常分发。如下借用一下《软件调试》中的异常分发的图^_^。</p>
+<div align="center"><br><img src="/img/2017-06-08-KiDispatchException-DispatchFlow.jpg" alt="KiDispatchException流程图"><br></div>
+
+<p>对于进入调试器的异常，后续的内容不在此处总结，后续可以总结一片异常如何分发给调试器。这里主要关注一下分发给异常处理器的流程。接下来就是调用RtlDispatchException()函数了，在Win2000的源码中，代码逻辑有一些出入，不能参考Win2000的代码了，此处直接反汇编一下XP中该函数的代码，代码如下:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br></pre></td><td class="code"><pre><span class="line">char __stdcall RtlDispatchException(int a1, int a2)</span><br><span class="line">&#123;</span><br><span class="line">  unsigned int v2; // eax@1</span><br><span class="line">  unsigned int v3; // ebx@1</span><br><span class="line">  int v4; // esi@2</span><br><span class="line">  unsigned __int32 v5; // edi@3</span><br><span class="line">  void *v6; // ecx@6</span><br><span class="line">  int v7; // eax@9</span><br><span class="line">  int v8; // edi@9</span><br><span class="line">  unsigned int v9; // eax@17</span><br><span class="line">  unsigned __int32 v10; // eax@25</span><br><span class="line">  unsigned __int32 v11; // ecx@25</span><br><span class="line">  unsigned int v13; // [sp+4h] [bp-64h]@16</span><br><span class="line">  int v14; // [sp+8h] [bp-60h]@16</span><br><span class="line">  int v15; // [sp+Ch] [bp-5Ch]@16</span><br><span class="line">  int v16; // [sp+14h] [bp-54h]@16</span><br><span class="line">  unsigned int v17; // [sp+54h] [bp-14h]@9</span><br><span class="line">  unsigned __int32 LowLimit; // [sp+58h] [bp-10h]@1</span><br><span class="line">  unsigned __int32 HighLimit; // [sp+5Ch] [bp-Ch]@1</span><br><span class="line">  unsigned int v20; // [sp+60h] [bp-8h]@1</span><br><span class="line">  char v21; // [sp+67h] [bp-1h]@1</span><br><span class="line"></span><br><span class="line">  v21 = 0;</span><br><span class="line">  RtlpGetStackLimits(&amp;LowLimit, &amp;HighLimit);        // 获取栈的上下界限</span><br><span class="line">  v2 = RtlpGetRegistrationHead();                   // 获取 ETHREAD中的异常处理器的头字段</span><br><span class="line">  v20 = 0;</span><br><span class="line">  v3 = v2;</span><br><span class="line">  if ( v2 != 0xFFFFFFFF )                           // 有异常处理器</span><br><span class="line">  &#123;</span><br><span class="line">    v4 = a1;</span><br><span class="line">    while ( 1 )</span><br><span class="line">    &#123;</span><br><span class="line">      v5 = v3 + 8;</span><br><span class="line">      if ( v3 &gt;= LowLimit &amp;&amp; v5 &lt;= HighLimit )</span><br><span class="line">        break;</span><br><span class="line">      if ( v3 &amp; 3</span><br><span class="line">        || KeGetCurrentIrql() &lt; 2u</span><br><span class="line">        || (v10 = __readfsdword(0x20), v11 = *(_DWORD *)(v10 + 2152), !*(_DWORD *)(v10 + 2164))</span><br><span class="line">        || v5 &gt; v11</span><br><span class="line">        || v3 &lt; v11 - 0x3000 )</span><br><span class="line">      &#123;</span><br><span class="line">LABEL_32:</span><br><span class="line">        *(_DWORD *)(v4 + 4) |= 8u;</span><br><span class="line">        return v21;</span><br><span class="line">      &#125;</span><br><span class="line">      HighLimit = *(_DWORD *)(v10 + 2152);</span><br><span class="line">      LowLimit = v11 - 0x3000;</span><br><span class="line">LABEL_29:</span><br><span class="line">      if ( v3 == 0xFFFFFFFF )                   // 遍历到结尾，则退出</span><br><span class="line">        return v21;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    if ( v3 &amp; 3 || !(unsigned __int8)RtlIsValidHandler(*(_DWORD *)(v3 + 4)) )   // 处理器是否是有效处理器</span><br><span class="line">      goto LABEL_32;</span><br><span class="line">    if ( byte_4837EE &amp; 0x80 )</span><br><span class="line">      a1 = RtlpLogExceptionHandler(v4, a2, 0, v3, 16); </span><br><span class="line">    v7 = RtlpExecuteHandlerForException(v6, v4, v3, a2, (int)&amp;v17, *(_DWORD *)(v3 + 4));    // 执行异常处理器</span><br><span class="line">    v8 = v7;</span><br><span class="line">    if ( byte_4837EE &amp; 0x80 )</span><br><span class="line">      RtlpLogLastExceptionDisposition(a1, v7);</span><br><span class="line">    if ( v20 == v3 )</span><br><span class="line">    &#123;</span><br><span class="line">      *(_DWORD *)(v4 + 4) &amp;= 0xFFFFFFEF;</span><br><span class="line">      v20 = 0;</span><br><span class="line">    &#125;</span><br><span class="line">    if ( v8 )</span><br><span class="line">    &#123;</span><br><span class="line">      if ( v8 != 1 )</span><br><span class="line">      &#123;</span><br><span class="line">        if ( v8 == 2 )      // 异常嵌套，特殊处理</span><br><span class="line">        &#123;</span><br><span class="line">          v9 = v17;</span><br><span class="line">          *(_DWORD *)(v4 + 4) |= 0x10u;</span><br><span class="line">          if ( v9 &gt; v20 )</span><br><span class="line">            v20 = v9;</span><br><span class="line">        &#125;</span><br><span class="line">        else                // 异常未处理，继续抛出异常</span><br><span class="line">        &#123;</span><br><span class="line">          v13 = 0xC0000026;</span><br><span class="line">          v14 = 1;</span><br><span class="line">          v15 = v4;</span><br><span class="line">          v16 = 0;</span><br><span class="line">          ((void (__stdcall *)(unsigned int *))RtlRaiseException)(&amp;v13);</span><br><span class="line">        &#125;</span><br><span class="line">LABEL_22:</span><br><span class="line">        v3 = *(_DWORD *)v3;     // 指向下一个异常处理器</span><br><span class="line">        goto LABEL_29;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    else</span><br><span class="line">    &#123;</span><br><span class="line">      if ( !(*(_BYTE *)(v4 + 4) &amp; 1) )</span><br><span class="line">        return 1;</span><br><span class="line">      v13 = 0xC0000025;</span><br><span class="line">      v14 = 1;</span><br><span class="line">      v15 = v4;</span><br><span class="line">      v16 = 0;</span><br><span class="line">      ((void (__stdcall *)(unsigned int *))RtlRaiseException)(&amp;v13);</span><br><span class="line">    &#125;</span><br><span class="line">    if ( *(_BYTE *)(v4 + 4) &amp; 8 )</span><br><span class="line">      return v21;</span><br><span class="line">    goto LABEL_22;      // 没有处理，则继续下一个异常处理器</span><br><span class="line">  &#125;</span><br><span class="line">  return v21;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>调用RtlpGetStackLimits()获取栈的上下限，用于判断遍历是否超出范围。RtlpGetRegistrationHead()获取注册的异常处理器链表头，从反汇编的代码（如下）看，直接读取的是fs:[0h]的内容，其实就是_KPCR结构的NtTib成员的第一个成员ExceptionList。该成员记录了当前栈上注册的异常处理器链表的表头。遍历异常处理器表，调用函数RtlIsValidHandler()判断注册函数是否有效处理器，同时调用RtlpExecuteHandlerForException()函数来调用注册的异常处理器函数，是否是否要处理当前异常。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">nt!RtlpGetRegistrationHead:</span><br><span class="line">80547fd8 64a100000000    mov     eax,dword ptr fs:[00000000h]</span><br><span class="line">80547fde c3              ret</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line">0: kd&gt; dt _KPCR ffdff000</span><br><span class="line">nt!_KPCR</span><br><span class="line">   +0x000 NtTib            : _NT_TIB</span><br><span class="line">   +0x01c SelfPcr          : 0xffdff000 _KPCR</span><br><span class="line">   +0x020 Prcb             : 0xffdff120 _KPRCB</span><br><span class="line">   +0x024 Irql             : 0 &apos;&apos;</span><br><span class="line">   +0x028 IRR              : 0</span><br><span class="line">   +0x02c IrrActive        : 0</span><br><span class="line">   +0x030 IDR              : 0xffffffff</span><br><span class="line">   +0x034 KdVersionBlock   : 0x8054e2b8 Void</span><br><span class="line">   +0x038 IDT              : 0x8003f400 _KIDTENTRY</span><br><span class="line">   +0x03c GDT              : 0x8003f000 _KGDTENTRY</span><br><span class="line">   +0x040 TSS              : 0x80042000 _KTSS</span><br><span class="line">   +0x044 MajorVersion     : 1</span><br><span class="line">   +0x046 MinorVersion     : 1</span><br><span class="line">   +0x048 SetMember        : 1</span><br><span class="line">   +0x04c StallScaleFactor : 0xd40</span><br><span class="line">   +0x050 DebugActive      : 0 &apos;&apos;</span><br><span class="line">   +0x051 Number           : 0 &apos;&apos;</span><br><span class="line">   +0x052 Spare0           : 0 &apos;&apos;</span><br><span class="line">   +0x053 SecondLevelCacheAssociativity : 0 &apos;&apos;</span><br><span class="line">   +0x054 VdmAlert         : 0</span><br><span class="line">   +0x058 KernelReserved   : [14] 0</span><br><span class="line">   +0x090 SecondLevelCacheSize : 0</span><br><span class="line">   +0x094 HalReserved      : [16] 0</span><br><span class="line">   +0x0d4 InterruptMode    : 0</span><br><span class="line">   +0x0d8 Spare1           : 0 &apos;&apos;</span><br><span class="line">   +0x0dc KernelReserved2  : [17] 0</span><br><span class="line">   +0x120 PrcbData         : _KPRCB</span><br><span class="line">0: kd&gt; dx -r1 (*((ntkrpamp!_NT_TIB *)0xffffffffffdff000))</span><br><span class="line">(*((ntkrpamp!_NT_TIB *)0xffffffffffdff000))                 [Type: _NT_TIB]</span><br><span class="line">    [+0x000] ExceptionList    : 0xffffffffb002f324 [Type: _EXCEPTION_REGISTRATION_RECORD *]</span><br><span class="line">    [+0x004] StackBase        : 0xffffffffb002fc70 [Type: void *]</span><br><span class="line">    [+0x008] StackLimit       : 0xffffffffb002c000 [Type: void *]</span><br><span class="line">    [+0x00c] SubSystemTib     : 0x0 [Type: void *]</span><br><span class="line">    [+0x010] FiberData        : 0x0 [Type: void *]</span><br><span class="line">    [+0x010] Version          : 0x0 [Type: unsigned long]</span><br><span class="line">    [+0x014] ArbitraryUserPointer : 0x0 [Type: void *]</span><br><span class="line">    [+0x018] Self             : 0x7ffdd000 [Type: _NT_TIB *]</span><br></pre></td></tr></table></figure>
+<p>对于用户层的异常分发，如前面所述从内核中回到Ring3层时，将TrapFrame更新，进入KeUserExceptionDispatcher指向的函数继续执行。它指向的函数是 ntdll!KiUserExceptionDispatcher()，如下摘取Win2000源码中代码。从例程的描述看，该函数在从内核模式返回，分发用户模式异常时会进入。如果一个基于栈帧的处理器处理了异常，则回到发生异常处继续执行。否则最后一次机会处理会执行。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br></pre></td><td class="code"><pre><span class="line">        page</span><br><span class="line">        subttl  &quot;User Exception Dispatcher&quot;</span><br><span class="line">;++</span><br><span class="line">;</span><br><span class="line">; VOID</span><br><span class="line">; KiUserExceptionDispatcher (</span><br><span class="line">;    IN PEXCEPTION_RECORD ExceptionRecord,</span><br><span class="line">;    IN PCONTEXT ContextRecord</span><br><span class="line">;    )</span><br><span class="line">;</span><br><span class="line">; Routine Description:</span><br><span class="line">;</span><br><span class="line">;    This routine is entered on return from kernel mode to dispatch a user</span><br><span class="line">;    mode exception. If a frame based handler handles the exception, then</span><br><span class="line">;    the execution is continued. Else last chance processing is performed.</span><br><span class="line">;</span><br><span class="line">;    NOTE:  This procedure is not called, but rather dispatched to.</span><br><span class="line">;           It depends on there not being a return address on the stack</span><br><span class="line">;           (assumption w.r.t. argument offsets.)</span><br><span class="line">;</span><br><span class="line">; Arguments:</span><br><span class="line">;</span><br><span class="line">;    ExceptionRecord (esp+0) - Supplies a pointer to an exception record.</span><br><span class="line">;</span><br><span class="line">;    ContextRecord (esp+4) - Supplies a pointer to a context frame.</span><br><span class="line">;</span><br><span class="line">; Return Value:</span><br><span class="line">;</span><br><span class="line">;    None.</span><br><span class="line">;</span><br><span class="line">;--</span><br><span class="line"></span><br><span class="line">cPublicProc _KiUserExceptionDispatcher      ,2</span><br><span class="line">.FPO (0, 2, 0, 0, 0, 0)</span><br><span class="line"></span><br><span class="line">        mov     ecx, [esp+4]            ; (ecx)-&gt;context record</span><br><span class="line">        mov     ebx, [esp]              ; (ebx)-&gt;exception record</span><br><span class="line"></span><br><span class="line">; attempt to dispatch the exception     // 尝试 分发异常</span><br><span class="line">        stdCall   _RtlDispatchException, &lt;ebx, ecx&gt;</span><br><span class="line"></span><br><span class="line">;</span><br><span class="line">; If the return status is TRUE, then the exception was handled and execution</span><br><span class="line">; should be continued with the NtContinue service in case the context was</span><br><span class="line">; changed. If the return statusn is FALSE, then the exception was not handled</span><br><span class="line">; and ZwRaiseException is called to perform last chance exception processing.</span><br><span class="line">;</span><br><span class="line">; 如果返回状态为TRUE，那么异常就是被处理了，因为上下文已经变化，代码继续执行应该使用NtContinue服务。</span><br><span class="line">; 如果返回状态是FLASE，异常没有被处理，调用ZwRaiseException()函数执行最后一次异常处理。</span><br><span class="line">;</span><br><span class="line">        or      al,al</span><br><span class="line">        je      short kued10</span><br><span class="line"></span><br><span class="line">;</span><br><span class="line">; Continue execution.</span><br><span class="line">;</span><br><span class="line"></span><br><span class="line">        pop     ebx                     ; (ebx)-&gt;exception record</span><br><span class="line">        pop     ecx                     ; (ecx)-&gt;context record</span><br><span class="line"></span><br><span class="line">; continue execution</span><br><span class="line">        stdCall   _ZwContinue, &lt;ecx, 0&gt;</span><br><span class="line">        jmp     short kued20            ; join common code</span><br><span class="line"></span><br><span class="line">;</span><br><span class="line">; Last chance processing.</span><br><span class="line">;</span><br><span class="line">;   (esp+0) = ExceptionRecord</span><br><span class="line">;   (esp+4) = ContextRecord</span><br><span class="line">;</span><br><span class="line"></span><br><span class="line">kued10: pop     ebx                     ; (ebx)-&gt;exception record</span><br><span class="line">        pop     ecx                     ; (ecx)-&gt;context record</span><br><span class="line"></span><br><span class="line">; ecx - context record</span><br><span class="line">; ebx - exception record</span><br><span class="line">; perform last chance processiong </span><br><span class="line">; 执行最后一次处理，第三个参数为 0，及FirstChance为FALSE，发起第二轮异常处理</span><br><span class="line">; 其实走到此处说明有调试器调试，但是调试器也选择不处理异常</span><br><span class="line">        stdCall   _ZwRaiseException, &lt;ebx, ecx, 0&gt;</span><br><span class="line"></span><br><span class="line">;</span><br><span class="line">; Common code for nonsuccessful completion of the continue or raiseexception</span><br><span class="line">; services. Use the return status as the exception code, set noncontinuable</span><br><span class="line">; exception and attempt to raise another exception. Note the stack grows</span><br><span class="line">; and eventually this loop will end.</span><br><span class="line">;</span><br><span class="line">; 如果 ZwContinue() 返回非0，则继续执行失败。将返回值作为异常码，并设置</span><br><span class="line">; 不可继续执行的标记位，再次抛出异常。</span><br><span class="line"></span><br><span class="line">.FPO(0, 0, 0, 0, 0, 0)</span><br><span class="line"></span><br><span class="line">kued20: add     esp, -ExceptionRecordSize ; allocate stack space</span><br><span class="line">        mov     [esp]+ErExceptionCode, eax ; set exception code</span><br><span class="line">        mov     dword ptr [esp]+ErExceptionFlags, EXCEPTION_NONCONTINUABLE</span><br><span class="line">        mov     [esp]+ErExceptionRecord,ebx ; set associated exception record</span><br><span class="line">        mov     dword ptr [esp]+ErNumberParameters, 0</span><br><span class="line">                                        ; set number of parameters</span><br><span class="line">; esp - addr of exception record</span><br><span class="line">        stdCall   _RtlRaiseException, &lt;esp&gt;</span><br><span class="line">; never return</span><br><span class="line">        stdRET    _KiUserExceptionDispatcher</span><br><span class="line"></span><br><span class="line">stdENDP _KiUserExceptionDispatcher</span><br><span class="line"></span><br><span class="line">        page</span><br><span class="line">        subttl  &quot;Raise User Exception Dispatcher&quot;</span><br></pre></td></tr></table></figure>
+<p>用户层异常分发，调用的是_RtlDispatchException()函数，及ntdll!RtlDispatchException()，见后文分析。如果异常分发返回了TRUE，则会调用<br>ZwContinue()函数继续代码执行，该函数为系统调用，容以后再做介绍。如果ZwContinue返回了，则说明当前异常无法再继续执行了，将返回码作为<br>异常码，并设置不可继续执行标记，调用RtlRaiseException()再次抛出异常。如果ntdll!RtlDispatchException()返回的是FALSE，则进行最后一次处理，<br>即发起第二次异常分发。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">0: kd&gt; u ntdll!ZwContinue</span><br><span class="line">ntdll!ZwContinue:</span><br><span class="line">7c92d05e b820000000      mov     eax,20h</span><br><span class="line">7c92d063 ba0003fe7f      mov     edx,offset SharedUserData!SystemCallStub (7ffe0300)</span><br><span class="line">7c92d068 ff12            call    dword ptr [edx]</span><br><span class="line">7c92d06a c20800          ret     8</span><br><span class="line">7c92d06d 90              nop</span><br></pre></td></tr></table></figure>
+<p>与内核层的异常分发基本类似，不同的是Ring3层的异常分发首先调用了 ntdll!RtlCallVectoredExceptionHandlers()，用于调用注册的向量化异常处理器。Windows提供了AddVectoredExceptionHandler()/RemoveVectoredExceptionHandler()函数，用于添加和删除向量化异常处理器，添加的处理器被放到了ntdll!RtlpCalloutEntryList指向的链表中，函数调用中可以看到，首先获取ntdll!RtlpCalloutEntryList表头，判断是否有表项存在。遍历每一个表项，解密函数指针，并调用注册的处理器。如果某个异常处理器返回了EXCEPTION_CONTINUE_EXECUTION（-1），则结束遍历，返回 1。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line">char __stdcall RtlCallVectoredExceptionHandlers(int a1, int a2)</span><br><span class="line">&#123;</span><br><span class="line">  char result; // al@2</span><br><span class="line">  int i; // esi@4</span><br><span class="line">  int (__stdcall *v4)(int *); // eax@5</span><br><span class="line">  int v5; // [sp+4h] [bp-8h]@4</span><br><span class="line">  int v6; // [sp+8h] [bp-4h]@4</span><br><span class="line">  char v7; // [sp+17h] [bp+Bh]@8</span><br><span class="line"></span><br><span class="line">  if ( (int *)RtlpCalloutEntryList == &amp;RtlpCalloutEntryList )	// 列表为空，直接返回</span><br><span class="line">  &#123;</span><br><span class="line">    result = 0;</span><br><span class="line">  &#125;</span><br><span class="line">  else</span><br><span class="line">  &#123;</span><br><span class="line">    v5 = a1;</span><br><span class="line">    v6 = a2;</span><br><span class="line">    RtlEnterCriticalSection(&amp;RtlpCalloutEntryLock);</span><br><span class="line">    for ( i = RtlpCalloutEntryList; ; i = *(_DWORD *)i )		// 遍历注册的向量化的异常处理器</span><br><span class="line">    &#123;</span><br><span class="line">      if ( (int *)i == &amp;RtlpCalloutEntryList )</span><br><span class="line">      &#123;</span><br><span class="line">        v7 = 0;</span><br><span class="line">        goto LABEL_9;</span><br><span class="line">      &#125;</span><br><span class="line">      v4 = (int (__stdcall *)(int *))RtlDecodePointer(*(_DWORD *)(i + 8));</span><br><span class="line">      if ( v4(&amp;v5) == -1 )										// 调用异常函数，-1（EXCEPTION_CONTINUE_EXECUTION）</span><br><span class="line">        break;</span><br><span class="line">    &#125;</span><br><span class="line">    v7 = 1;</span><br><span class="line">LABEL_9:</span><br><span class="line">    RtlLeaveCriticalSection(&amp;RtlpCalloutEntryLock);</span><br><span class="line">    result = v7;</span><br><span class="line">  &#125;</span><br><span class="line">  return result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>如果向量化异常处理器没有处理异常，则会走到栈上注册的异常处理器的遍历流程。剩下部分的代码逻辑和上述的内核中的RtlDispatchException()函数逻辑就基本相同了，此处不再详述。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br></pre></td><td class="code"><pre><span class="line">char __stdcall RtlDispatchException(int a1, int a2)</span><br><span class="line">&#123;</span><br><span class="line">  int v2; // esi@1</span><br><span class="line">  unsigned int v3; // ebx@2</span><br><span class="line">  unsigned int v4; // eax@6</span><br><span class="line">  int v5; // eax@11</span><br><span class="line">  int v6; // edi@11</span><br><span class="line">  unsigned int v8; // eax@27</span><br><span class="line">  unsigned int v9; // [sp+4h] [bp-64h]@26</span><br><span class="line">  int v10; // [sp+8h] [bp-60h]@26</span><br><span class="line">  int v11; // [sp+Ch] [bp-5Ch]@26</span><br><span class="line">  int v12; // [sp+14h] [bp-54h]@26</span><br><span class="line">  unsigned int v13; // [sp+54h] [bp-14h]@11</span><br><span class="line">  int v14; // [sp+58h] [bp-10h]@10</span><br><span class="line">  unsigned int v15; // [sp+5Ch] [bp-Ch]@2</span><br><span class="line">  unsigned int v16; // [sp+60h] [bp-8h]@2</span><br><span class="line">  char v17; // [sp+67h] [bp-1h]@1</span><br><span class="line">  unsigned int v18; // [sp+70h] [bp+8h]@2</span><br><span class="line"></span><br><span class="line">  v2 = a1;</span><br><span class="line">  v17 = 0;</span><br><span class="line">  if ( RtlCallVectoredExceptionHandlers(a1, a2) )// 调用注册的 向量化的异常处理函数</span><br><span class="line">    return 1;</span><br><span class="line">  RtlpGetStackLimits(&amp;v16, &amp;v15);</span><br><span class="line">  v18 = 0;</span><br><span class="line">  v3 = RtlpGetRegistrationHead();               // 获取栈上注册的异常处理函数列表的头</span><br><span class="line">  if ( v3 != 0xFFFFFFFF )</span><br><span class="line">  &#123;</span><br><span class="line">    while ( 1 )</span><br><span class="line">    &#123;</span><br><span class="line">      if ( v3 &lt; v16</span><br><span class="line">        || v3 + 8 &gt; v15</span><br><span class="line">        || v3 &amp; 3</span><br><span class="line">        || (v4 = *(_DWORD *)(v3 + 4), v4 &gt;= v16) &amp;&amp; v4 &lt; v15</span><br><span class="line">        || !(unsigned __int8)RtlIsValidHandler(*(_DWORD *)(v3 + 4)) )</span><br><span class="line">      &#123;</span><br><span class="line">        *(_DWORD *)(v2 + 4) |= 8u;              // _EXCEPTION_RECORD-&gt;ExceptionFlags    0x8(EXCEPTION_STACK_INVALID)</span><br><span class="line">        return v17;</span><br><span class="line">      &#125;</span><br><span class="line">      if ( byte_7C99E3FA &amp; 0x80 )</span><br><span class="line">        v14 = RtlpLogExceptionHandler(v2, a2, 0, v3, 16);</span><br><span class="line">      v5 = RtlpExecuteHandlerForException(v2, v3, a2, &amp;v13, *(_DWORD *)(v3 + 4));// 执行异常处理函数</span><br><span class="line">      v6 = v5;</span><br><span class="line">      if ( byte_7C99E3FA &amp; 0x80 )</span><br><span class="line">        RtlpLogLastExceptionDisposition(v14, v5);</span><br><span class="line">      if ( v18 == v3 )</span><br><span class="line">      &#123;</span><br><span class="line">        *(_DWORD *)(v2 + 4) &amp;= 0xFFFFFFEF;      // _EXCEPTION_RECORD-&gt;ExceptionFlags</span><br><span class="line">        v18 = 0;</span><br><span class="line">      &#125;</span><br><span class="line">      if ( !v6 )</span><br><span class="line">        break;</span><br><span class="line">      if ( v6 == 1 )</span><br><span class="line">        goto LABEL_20;</span><br><span class="line">      if ( v6 == 2 )</span><br><span class="line">      &#123;</span><br><span class="line">        v8 = v13;</span><br><span class="line">        *(_DWORD *)(v2 + 4) |= 0x10u;           // EXCEPTION_NESTED_CALL  嵌套调用</span><br><span class="line">        if ( v8 &gt; v18 )</span><br><span class="line">          v18 = v8;</span><br><span class="line">      &#125;</span><br><span class="line">      else</span><br><span class="line">      &#123;</span><br><span class="line">        v9 = 0xC0000026;                        // EXCEPTION_INVALID_DISPOSITION</span><br><span class="line">        v10 = 1;</span><br><span class="line">        v11 = v2;</span><br><span class="line">        v12 = 0;</span><br><span class="line">        ((void (__stdcall *)(unsigned int *))RtlRaiseException)(&amp;v9);</span><br><span class="line">      &#125;</span><br><span class="line">LABEL_21:</span><br><span class="line">      v3 = *(_DWORD *)v3;</span><br><span class="line">      if ( v3 == 0xFFFFFFFF )                   // 异常列表到结尾了</span><br><span class="line">        return v17;</span><br><span class="line">    &#125;</span><br><span class="line">    if ( !(*(_BYTE *)(v2 + 4) &amp; 1) )</span><br><span class="line">      return 1;</span><br><span class="line">    v9 = 0xC0000025;                            // EXCEPTION_NONCONTINUABLE_EXCEPTION</span><br><span class="line">    v10 = 1;</span><br><span class="line">    v11 = v2;</span><br><span class="line">    v12 = 0;</span><br><span class="line">    ((void (__stdcall *)(unsigned int *))RtlRaiseException)(&amp;v9);</span><br><span class="line">LABEL_20:</span><br><span class="line">    if ( *(_BYTE *)(v2 + 4) &amp; 8 )               // _EXCEPTION_RECORD-&gt;ExceptionFlags    0x8(EXCEPTION_STACK_INVALID)</span><br><span class="line">      return v17;</span><br><span class="line">    goto LABEL_21;</span><br><span class="line">  &#125;</span><br><span class="line">  return v17;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>执行异常处理函数，会调用RtlpExecuteHandlerForException()，下面列举出了XP上这个函数的调用顺序，可知最终调用了异常处理函数。RtlDispatchException()函数中的调用上述函数时，最后一个传参为*(_DWORD *)(v3 + 4)，即异常处理函数。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">int __thiscall RtlpExecuteHandlerForException(void *this, int a1, int a2, int a3, int a4, int a5)</span><br><span class="line">&#123;</span><br><span class="line">  return ExecuteHandler((int)this, (int)sub_7C9232BC, a1, a2, a3, a4, a5);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int __fastcall ExecuteHandler(int ecx0, int edx0, int a1, int a2, int a3, int a4, int a5)</span><br><span class="line">&#123;</span><br><span class="line">  return ExecuteHandler2(ecx0, edx0, a1, a2, a3, a4, (int (__stdcall *)(int, int, int, int, int, int))a5);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int __fastcall ExecuteHandler2(int a1, int a2, int a3, int a4, int a5, int a6, int (__stdcall *a7)(int, int, int, int, int, int))</span><br><span class="line">&#123;</span><br><span class="line">  int v8; // [sp-Ch] [bp-Ch]@0</span><br><span class="line"></span><br><span class="line">  return a7(a3, a4, a5, a6, v8, a2);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里有一点需要注意，看上面函数，可能会觉得如果这些函数都不处理这个异常呢？或者说我写程序压根没有写try-except代码来处理异常。其实系统会为每一个线程设置一个默认的异常处理函数。这个默认的异常处理函数就是UnhandledExceptionFilter()，就是说即使你在写代码时一个try-except也不用，发生了异常也是可以被处理的，处理的函数就是UnhandledExceptionFilter()。</p>
+<p>后面的内容不再写了，于是乎就留下了如下的几个问题：<br>1 内核调试 nt!KdpTrap<br>2 Ring3层的异常向调试器分发（DbgkForwardException()）<br>3 UnhandledExceptionFilter()的处理流程<br>4 try-except / try-catch（C++）编译成的代码如何处理异常<br>这样就要以后再慢慢总结了，一下总结出来有点略多啊！！！:)</p>
+<p>还是有好多边角没顾及到，后面看仔细了再补充!</p>
+<p><strong>参考文档</strong></p>
+<ol>
+<li>ReactOS源码</li>
+<li>Win2000部分源码</li>
+<li>《软件调试》</li>
+</ol>
+<p><strong>修订历史</strong></p>
+<ul>
+<li>2017-05-24 10:32:22    完成博文</li>
+</ul>
+<p>By Andy  @ 2017-05-24 10:32:22</p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Windbg/">Windbg</a><a href="/tags/Exception/">Exception</a>
+  </div>
+
+</div>
+
+
+
+	<div class="article-share" id="share">
+	
+	  <div data-url="https://dbgtech.github.io/2017/05/21/Windows-Exception-Dispatch.html" data-title="Windows异常分发 | DbgTech" data-tsina="" class="share clearfix">
+	  </div>
+	
+	</div>
+
+
+</footer>
+
+   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+ <div class="prev" >
+ <a href="/2017/05/21/Stack-Cookie.html" title="Stack Cookie运行原理">
+  <strong>上一篇：</strong><br/>
+  <span>
+  Stack Cookie运行原理</span>
+</a>
+</div>
+
+
+<div class="next">
+<a href="/2017/05/17/C-runtime-library-analysis.html"  title="C\C++运行时库源代码阅读">
+ <strong>下一篇：</strong><br/> 
+ <span>C\C++运行时库源代码阅读
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ <ol class="toc"><li class="toc-item toc-level-4"><a class="toc-link" href="#异常定义"><span class="toc-number">1.</span> <span class="toc-text">异常定义</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#异常分发"><span class="toc-number">2.</span> <span class="toc-text">异常分发</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#实模式"><span class="toc-number">2.1.</span> <span class="toc-text">实模式</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#保护模式"><span class="toc-number">2.2.</span> <span class="toc-text">保护模式</span></a></li></ol></li></ol>
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  <div class="linkslist">
+  <p class="asidetitle">专栏</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://dbgtech.github.io/Tools/" target="_blank" title="常用工具">常用工具</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+		  
+			<li><a href="/categories/散记/" title="散记">散记<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/笔记/" title="笔记">笔记<sup>6</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/读书/" title="读书">读书<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/调试/" title="调试">调试<sup>8</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/转载/" title="转载">转载<sup>1</sup></a></li>
+		  
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			
+				<li><a href="/tags/Windbg/" title="Windbg">Windbg<sup>5</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Exception/" title="Exception">Exception<sup>4</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Windows/" title="Windows">Windows<sup>3</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/心情/" title="心情">心情<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/X86汇编/" title="X86汇编">X86汇编<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Markdown/" title="Markdown">Markdown<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Stack-Cookie/" title="Stack Cookie">Stack Cookie<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/time/" title="time">time<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C/C++">C/C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Win10/" title="Win10">Win10<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/UWP/" title="UWP">UWP<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/读书笔记/" title="读书笔记">读书笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C\C++">C\C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/反思/" title="反思">反思<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/实模式/" title="实模式">实模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/保护模式/" title="保护模式">保护模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/运行时库/" title="运行时库">运行时库<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/WSL/" title="WSL">WSL<sup>1</sup></a></li>
+			
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://git-scm.com/book/zh/v2" target="_blank" title="Git">Git</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://hexo.io/zh-cn/docs/" target="_blank" title="Hexo">Hexo</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://36kr.com/" target="_blank" title="36氪">36氪</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://wiki.osdev.org/Expanded_Main_Page" target="_blank" title="OSDev">OSDev</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.reactos.com/" target="_blank" title="ReactOS">ReactOS</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.freebuf.com/" target="_blank" title="FreeBuf">FreeBuf</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.appinn.com/markdown/" target="_blank" title="Makedown">Makedown</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://www.huxiu.com/" target="_blank" title="虎嗅网">虎嗅网</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://bbs.pediy.com/" target="_blank" title="看雪论坛">看雪论坛</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.geekpark.net/" target="_blank" title="极客公园">极客公园</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  
+  <div class="archiveslist">
+    <p class="asidetitle"><a href="/archives">归档</a></p>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/12/">十二月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/11/">十一月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/01/">一月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/12/">十二月 2016</a><span class="archive-list-count">1</span></li></ul>
+  </div>
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+		<p class="copyright">
+		Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Jacman">Jacman</a> © 2018 
+		
+		<a href="/about" target="_blank" title="Andy Guo">Andy Guo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+<script src="/js/jquery.qrcode-0.12.0.min.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+  
+        getSize();
+        if (myWidth >= 1024) {
+          c.click();
+        }
+  
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else{
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  c.click(function(){
+    ta.css('display', 'block').addClass('fadeIn');
+  });
+  o.click(function(){
+    ta.css('display', 'none');
+  });
+  $(window).scroll(function(){
+    ta.css("top",Math.max(140,320-$(this).scrollTop()));
+  });
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<div class="hoverqrcode clearfix"></div>',
+  '<a class="overlay" id="qrcode"></a>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="微信"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="微博"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+
+  $('.hoverqrcode').hide();
+
+  var myWidth = 0;
+  function updatehoverqrcode(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+    var qrsize = myWidth > 1024 ? 200:100;
+    var options = {render: 'image', size: qrsize, fill: '#2ca6cb', text: url, radius: 0.5, quiet: 1};
+    var p = $('.article-share-qrcode').position();
+    $('.hoverqrcode').empty().css('width', qrsize).css('height', qrsize)
+                          .css('left', p.left-qrsize/2+20).css('top', p.top-qrsize-10)
+                          .qrcode(options);
+  };
+  $(window).resize(function(){
+    $('.hoverqrcode').hide();
+  });
+  $('.article-share-qrcode').click(function(){
+    updatehoverqrcode();
+    $('.hoverqrcode').toggle();
+  });
+  $('.article-share-qrcode').hover(function(){}, function(){
+      $('.hoverqrcode').hide();
+  });
+});   
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+<!-- Analytics Begin -->
+
+
+
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "//hm.baidu.com/hm.js?e6d1f421bbc9962127a50488f9ed37d1";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+
+
+
+<!-- Analytics End -->
+
+<!-- Totop Begin -->
+
+	<div id="totop">
+	<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+	</div>
+	<script src="/js/totop.js"></script>
+
+<!-- Totop End -->
+
+<!-- MathJax Begin -->
+<!-- mathjax config similar to math.stackexchange -->
+
+
+<!-- MathJax End -->
+
+<!-- Tiny_search Begin -->
+
+<!-- Tiny_search End -->
+
+  </body>
+</html>
+

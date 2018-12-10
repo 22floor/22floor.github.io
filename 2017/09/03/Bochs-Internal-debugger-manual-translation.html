@@ -1,0 +1,1038 @@
+
+ <!DOCTYPE HTML>
+<html lang="zh-CN">
+<head>  
+  <meta charset="UTF-8">
+  
+    <title>Bochs内置调试器使用 | DbgTech</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1,user-scalable=no">
+    
+    <meta name="author" content="Andy Guo">
+    
+
+    
+    <meta name="description" content="Bochs虚拟机就不过多介绍了，官网上说的非常清楚。Bochs是一款模拟形式的虚拟机，区别于VMWare等虚拟机。但是Bochs有一个内置调试器，可以用来调试系统内核，尤其调试系统内核未初始化内置调试之前的系统引导阶段代码逻辑。下面将Bochs官网的使用Bochs内置调试器的教程简单翻译一下。 原文翻译如下： 使用Bochs内置调试器在编译Bochs时可以添加编译条件，在Bochs内部编译像GDB">
+<meta name="keywords" content="Bochs,ReactOS">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Bochs内置调试器使用">
+<meta property="og:url" content="https://dbgtech.github.io/2017/09/03/Bochs-Internal-debugger-manual-translation.html">
+<meta property="og:site_name" content="DbgTech">
+<meta property="og:description" content="Bochs虚拟机就不过多介绍了，官网上说的非常清楚。Bochs是一款模拟形式的虚拟机，区别于VMWare等虚拟机。但是Bochs有一个内置调试器，可以用来调试系统内核，尤其调试系统内核未初始化内置调试之前的系统引导阶段代码逻辑。下面将Bochs官网的使用Bochs内置调试器的教程简单翻译一下。 原文翻译如下： 使用Bochs内置调试器在编译Bochs时可以添加编译条件，在Bochs内部编译像GDB">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2018-05-19T07:03:13.416Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Bochs内置调试器使用">
+<meta name="twitter:description" content="Bochs虚拟机就不过多介绍了，官网上说的非常清楚。Bochs是一款模拟形式的虚拟机，区别于VMWare等虚拟机。但是Bochs有一个内置调试器，可以用来调试系统内核，尤其调试系统内核未初始化内置调试之前的系统引导阶段代码逻辑。下面将Bochs官网的使用Bochs内置调试器的教程简单翻译一下。 原文翻译如下： 使用Bochs内置调试器在编译Bochs时可以添加编译条件，在Bochs内部编译像GDB">
+
+    
+    <link rel="alternative" href="/atom.xml" title="DbgTech" type="application/atom+xml">
+    
+    
+    <link rel="icon" href="/img/favicon.ico">
+    
+    
+    <link rel="apple-touch-icon" href="/img/jacman.jpg">
+    <link rel="apple-touch-icon-precomposed" href="/img/jacman.jpg">
+    
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+  <body>
+    <header>
+      
+<div>
+		
+			<div id="imglogo">
+				<a href="/"><img src="/img/logo.png" alt="DbgTech" title="DbgTech"/></a>
+			</div>
+			
+			<div id="textlogo">
+				<h1 class="site-name"><a href="/" title="DbgTech">DbgTech</a></h1>
+				<h2 class="blog-motto">—— 慢下来，享受思考的小确幸！</h2>
+			</div>
+			<div class="navbar"><a class="navbutton navmobile" href="#" title="菜单">
+			</a></div>
+			<nav class="animated">
+				<ul>
+					<ul>
+					 
+						<li><a href="/">Home</a></li>
+					
+						<li><a href="/column">Column</a></li>
+					
+						<li><a href="/archives">Archives</a></li>
+					
+						<li><a href="/about">About</a></li>
+					
+				</ul>
+			</nav>			
+</div>
+    </header>
+    <div id="container">
+      <div id="main" class="post" itemscope itemprop="blogPost">
+  
+	<article itemprop="articleBody"> 
+		<header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/09/03/Bochs-Internal-debugger-manual-translation.html" title="Bochs内置调试器使用" itemprop="url">Bochs内置调试器使用</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-09-03T01:52:23.000Z" itemprop="datePublished"> 发表于 2017-09-03</time>
+    
+  </p>
+</header>
+	<div class="article-content">
+		
+		<div id="toc" class="toc-article">
+			<strong class="toc-title">文章目录</strong>
+		
+			<ol class="toc"><li class="toc-item toc-level-4"><a class="toc-link" href="#使用Bochs内置调试器"><span class="toc-number">1.</span> <span class="toc-text">使用Bochs内置调试器</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#调试示例"><span class="toc-number">2.</span> <span class="toc-text">调试示例</span></a></li></ol>
+		
+		</div>
+		
+		<p>Bochs虚拟机就不过多介绍了，官网上说的非常清楚。Bochs是一款模拟形式的虚拟机，区别于VMWare等虚拟机。但是Bochs有一个内置调试器，可以用来调试系统内核，尤其调试系统内核未初始化内置调试之前的系统引导阶段代码逻辑。下面将Bochs官网的使用Bochs内置调试器的教程简单翻译一下。</p>
+<p>原文翻译如下：</p>
+<h4 id="使用Bochs内置调试器"><a href="#使用Bochs内置调试器" class="headerlink" title="使用Bochs内置调试器"></a>使用Bochs内置调试器</h4><p>在编译Bochs时可以添加编译条件，在Bochs内部编译像GDB一样的命令行调试器，使用这个调试器可以设置断点，单步执行指令，或其他的有用的调试功能。如果有其他的调试命令你觉得对调试器非常有帮助，告诉我，我尽可能实现它。</p>
+<blockquote>
+<p>注意：这一部分介绍了如何开启和使用Bochs命令行调试器。如果想要使用图形形式的前端请参考调试器GUI部分如何开启功能。</p>
+</blockquote>
+<p>要是用调试器，在编译Bochs时需要使用<code>--enable-debugger</code>和<code>--enable-disasm</code>编译标志进行编译配置。例如：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">./configure --enable-debugger --enable-disasm</span><br></pre></td></tr></table></figure></p>
+<blockquote>
+<p>注意：编译时必须使用flex 2.5.4或更高版本。我听说2.5.2版本无法正常工作。</p>
+</blockquote>
+<p>第一次启动Bochs时，会看到如下的命令行提示符。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">bochs:1&gt;</span><br></pre></td></tr></table></figure>
+<p>在命令行提示符中就可以输入如下的这些调试命令了。<br><a id="more"></a><br><strong>1. 执行控制（Execution Control）</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">命令</th>
+<th style="text-align:left">解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">c</td>
+<td style="text-align:left">继续执行</td>
+</tr>
+<tr>
+<td style="text-align:left">cont</td>
+<td style="text-align:left">继续执行</td>
+</tr>
+<tr>
+<td style="text-align:left">continue</td>
+<td style="text-align:left">继续执行</td>
+</tr>
+<tr>
+<td style="text-align:left">s     [count]</td>
+<td style="text-align:left">执行count条指令，如果不指定参数，默认值为1</td>
+</tr>
+<tr>
+<td style="text-align:left">step  [count]</td>
+<td style="text-align:left">同上</td>
+</tr>
+<tr>
+<td style="text-align:left">s     [cpu] [count]</td>
+<td style="text-align:left">对于对称多处理器结构模拟，在cpu上执行count条指令，count的默认值为1</td>
+</tr>
+<tr>
+<td style="text-align:left">step  [cpu] [count]</td>
+<td style="text-align:left">同上</td>
+</tr>
+<tr>
+<td style="text-align:left">s     all [count]</td>
+<td style="text-align:left">对于对称多处理器结构模拟，所有cpu上都执行count条指令，count的默认值为1</td>
+</tr>
+<tr>
+<td style="text-align:left">step  all [count]</td>
+<td style="text-align:left">同上</td>
+</tr>
+<tr>
+<td style="text-align:left">Ctrl-C</td>
+<td style="text-align:left">停止执行，返回到命令行提示符</td>
+</tr>
+<tr>
+<td style="text-align:left">Ctrl-D</td>
+<td style="text-align:left">如果在空行上执行，则退出调试器</td>
+</tr>
+<tr>
+<td style="text-align:left">q</td>
+<td style="text-align:left">退出调试器，继续执行</td>
+</tr>
+<tr>
+<td style="text-align:left">quit</td>
+<td style="text-align:left">同上</td>
+</tr>
+<tr>
+<td style="text-align:left">exit</td>
+<td style="text-align:left">同上</td>
+</tr>
+</tbody>
+</table>
+<p><strong>2. 断点（BreakPoints）</strong></p>
+<blockquote>
+<p>注意: 下面的格式符’seg’,’off’，和’addr’，没有设置它们的基数。（调试中最好使用十六进制）<br>hexidecimal:    0xcdef0123<br>decimal:        123456789<br>octal:          01234567</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">命令</th>
+<th style="text-align:left">解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">vbreak seg:off</td>
+<td style="text-align:left">设置虚拟地址指令断点</td>
+</tr>
+<tr>
+<td style="text-align:left">vb     seg:off</td>
+<td style="text-align:left">同上</td>
+</tr>
+<tr>
+<td style="text-align:left">lbreak addr</td>
+<td style="text-align:left">在线性地址指令上设置断点</td>
+</tr>
+<tr>
+<td style="text-align:left">lb     addr</td>
+<td style="text-align:left">同上</td>
+</tr>
+<tr>
+<td style="text-align:left">pbreak [*] addr</td>
+<td style="text-align:left">在物理地址上设置断点</td>
+</tr>
+<tr>
+<td style="text-align:left">pb     [*] addr</td>
+<td style="text-align:left">* 符号是兼容GDB命令，为可选参数</td>
+</tr>
+<tr>
+<td style="text-align:left">break  [*] addr</td>
+<td style="text-align:left">同上</td>
+</tr>
+<tr>
+<td style="text-align:left">b      [*] addr</td>
+<td style="text-align:left">同上</td>
+</tr>
+<tr>
+<td style="text-align:left">info break</td>
+<td style="text-align:left">显示当前所有断点状态</td>
+</tr>
+<tr>
+<td style="text-align:left">bpe    n</td>
+<td style="text-align:left">开启断点</td>
+</tr>
+<tr>
+<td style="text-align:left">bpd    n</td>
+<td style="text-align:left">关闭断点</td>
+</tr>
+<tr>
+<td style="text-align:left">delete n</td>
+<td style="text-align:left">删除断点</td>
+</tr>
+<tr>
+<td style="text-align:left">del    n</td>
+<td style="text-align:left">同上</td>
+</tr>
+<tr>
+<td style="text-align:left">d      n</td>
+<td style="text-align:left">同上</td>
+</tr>
+</tbody>
+</table>
+<p><strong>3. 内存观察点（Memory WatchPoints）</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">命令</th>
+<th style="text-align:left">解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">watch read  addr</td>
+<td style="text-align:left">在物理地址addr上插入读观察点</td>
+</tr>
+<tr>
+<td style="text-align:left">watch r     addr</td>
+<td style="text-align:left">同上</td>
+</tr>
+<tr>
+<td style="text-align:left">watch write addr</td>
+<td style="text-align:left">在屋里地址addr上插入一个写观察点</td>
+</tr>
+<tr>
+<td style="text-align:left">watch w     addr</td>
+<td style="text-align:left">同上</td>
+</tr>
+<tr>
+<td style="text-align:left">watch</td>
+<td style="text-align:left">显示当前内存观察点的显示状态</td>
+</tr>
+<tr>
+<td style="text-align:left">watch stop</td>
+<td style="text-align:left">当遇到观察点时，停止模拟执行（默认）</td>
+</tr>
+<tr>
+<td style="text-align:left">watch continue</td>
+<td style="text-align:left">在遇到观察点时，不要停止模拟执行</td>
+</tr>
+<tr>
+<td style="text-align:left">unwatch addr</td>
+<td style="text-align:left">移除指定物理地址上的观察点</td>
+</tr>
+<tr>
+<td style="text-align:left">unwatch</td>
+<td style="text-align:left">移除所有的观察点</td>
+</tr>
+<tr>
+<td style="text-align:left">trace-mem on/off</td>
+<td style="text-align:left">开启/关闭内存访问追踪</td>
+</tr>
+</tbody>
+</table>
+<p><strong>4. 操作内存（Manipulating Memory）</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">命令</th>
+<th style="text-align:left">解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">x  /nuf addr</td>
+<td style="text-align:left">在线性地址addr处检查内存内容</td>
+</tr>
+<tr>
+<td style="text-align:left">xp /nuf addr</td>
+<td style="text-align:left">在物理地址 addr处查看内存内容</td>
+</tr>
+<tr>
+<td style="text-align:left">setpmem addr datasize val</td>
+<td style="text-align:left">在内存位置addr处 设置datasize大小内存，值为 val</td>
+</tr>
+<tr>
+<td style="text-align:left">writemem</td>
+<td style="text-align:left">从指定线性地址dump一个字节的内存内容 到一个文件中</td>
+</tr>
+<tr>
+<td style="text-align:left">crc  addr1  addr2</td>
+<td style="text-align:left">显示物理地址范围 addr1..addr2之间内容的 CRC值</td>
+</tr>
+</tbody>
+</table>
+<p>x/xp两个命令的参数解释如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">n 指定要显示的内存单元的数量</span><br><span class="line">u 显示的内存单元的大小，如下参数之一</span><br><span class="line">	b 单个字节</span><br><span class="line">	h 半个字(2 字节)</span><br><span class="line">	w 一个字(4 字节)</span><br><span class="line">	g 一个大字 (8 字节)</span><br><span class="line">	注意：这些不是典型的Intel的类型大小命名，但是它们和GDB惯例一致。</span><br><span class="line">f 打印的格式。如下类型之一：</span><br><span class="line">	x 按照十六进制形式打印</span><br><span class="line">	d 按照十进制形式打印</span><br><span class="line">	u 以无符号的10进制打印</span><br><span class="line">	o 按照八进制形式打印</span><br><span class="line">	t 按照二进制行是打印</span><br></pre></td></tr></table></figure>
+<p>n，f，和u三个参数是可选参数。u和f默认是使用上一次执行命令时的值，如果没有指定u使用w，f使用x。n当前默认是1.如果这些参数都没有给出，则不应该使用斜线。addr参数也是可选参数。如果没有指定addr参数，则使用下一个地址（即上一个x命令执行时指定的地址n+1）。</p>
+<p><strong>5. 查看信息命令（Info commands）</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">命令</th>
+<th style="text-align:left">解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">r/reg/regs/registers</td>
+<td style="text-align:left">列举CPU整数寄存器和它们的内容</td>
+</tr>
+<tr>
+<td style="text-align:left">fp/fpu</td>
+<td style="text-align:left">列举FPU寄存器和它们的内容</td>
+</tr>
+<tr>
+<td style="text-align:left">mmx</td>
+<td style="text-align:left">列举哦MMX寄存器和它们的内容</td>
+</tr>
+<tr>
+<td style="text-align:left">sse/xmm</td>
+<td style="text-align:left">列举SSE寄存器和它们的内容</td>
+</tr>
+<tr>
+<td style="text-align:left">ymm</td>
+<td style="text-align:left">列举所有AVX寄存器和它们的内容</td>
+</tr>
+<tr>
+<td style="text-align:left">sreg</td>
+<td style="text-align:left">列举段寄存器和它们的内容</td>
+</tr>
+<tr>
+<td style="text-align:left">dreg</td>
+<td style="text-align:left">列举调试寄存器和它们的内容</td>
+</tr>
+<tr>
+<td style="text-align:left">creg</td>
+<td style="text-align:left">列举控制寄存器和它们的内容</td>
+</tr>
+<tr>
+<td style="text-align:left">info cpu</td>
+<td style="text-align:left">列举哦CPU所有的寄存器以及它们的内容</td>
+</tr>
+<tr>
+<td style="text-align:left">info eflags</td>
+<td style="text-align:left">显示解析的EFLAGS寄存器</td>
+</tr>
+<tr>
+<td style="text-align:left">info break</td>
+<td style="text-align:left">显示当前所有断点状态</td>
+</tr>
+<tr>
+<td style="text-align:left">info tab</td>
+<td style="text-align:left">显示分页地址转换</td>
+</tr>
+<tr>
+<td style="text-align:left">info device</td>
+<td style="text-align:left">显示指定设备的状态</td>
+</tr>
+</tbody>
+</table>
+<p><strong>6. 操作CPU寄存器（Manipulating CPU Registers）</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">命令</th>
+<th style="text-align:left">解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">set reg = expr</td>
+<td style="text-align:left">修改CPU寄存器值为expr。当前只有通用寄存器和指令寄存器支持修改。不能够修改标志寄存器，段寄存器，浮点寄存器和SIMD寄存器。</td>
+</tr>
+<tr>
+<td style="text-align:left">registers</td>
+<td style="text-align:left">列举CPU寄存器以及它们的值</td>
+</tr>
+<tr>
+<td style="text-align:left">regs</td>
+<td style="text-align:left">同上</td>
+</tr>
+<tr>
+<td style="text-align:left">reg</td>
+<td style="text-align:left">同上</td>
+</tr>
+<tr>
+<td style="text-align:left">r</td>
+<td style="text-align:left">同上</td>
+</tr>
+</tbody>
+</table>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">示例：</span><br><span class="line">	set eax = 2+2/2</span><br><span class="line">	set esi = 2*eax+ebx</span><br></pre></td></tr></table></figure>
+<p><strong>7. 反汇编命令 (Disassembly commands)</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">命令</th>
+<th style="text-align:left">解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">disassemble start end</td>
+<td style="text-align:left">在给定的线性地址范围内反汇编指令，包含start处指令，不包含end处指令。使用”set $disassemble_size =”告诉调试器设定的段大小。如果只想反汇编第一条指令，则可以不给出end，或将end值设置小于start即可。</td>
+</tr>
+<tr>
+<td style="text-align:left">disassemble switch-mode</td>
+<td style="text-align:left">在Intel和 AT&amp;T两种汇编风格之间切换</td>
+</tr>
+<tr>
+<td style="text-align:left">disassemble size = n</td>
+<td style="text-align:left">设定调试器执行反汇编命令时使用的段大小，使用0，16，32。值0意思是使用当前的CS段寄存器，默认值是0.</td>
+</tr>
+<tr>
+<td style="text-align:left">set $auto_disassemble = n</td>
+<td style="text-align:left">如果n=1，每次停止执行时就反汇编当前的指令，默认值为0。当前CPU上下文的段大小用于反汇编，所以变量”disassemble size”就被忽略了。</td>
+</tr>
+<tr>
+<td style="text-align:left">set disassemble on</td>
+<td style="text-align:left">同’set $auto_disassemble = 1’命令</td>
+</tr>
+<tr>
+<td style="text-align:left">set disassemble off</td>
+<td style="text-align:left">同’set $auto_disassemble = 0’命令</td>
+</tr>
+</tbody>
+</table>
+<p><strong>8. 指令跟踪（Instruction tracing）</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">命令</th>
+<th style="text-align:left">解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">trace on</td>
+<td style="text-align:left">反汇编每一条执行的指令。引起异常的指令都没有真正执行，因此也不会被跟踪</td>
+</tr>
+<tr>
+<td style="text-align:left">trace off</td>
+<td style="text-align:left">关闭指令跟踪功能</td>
+</tr>
+</tbody>
+</table>
+<p><strong> 9. 指令功能（Instrumentation） </strong></p>
+<p>要使用Bochs中的指令功能，在编译时就要设置支持它。你应该在”instrument/“目录下构建自定义的指令库到单独目录中。在配置中设置想要使用的指令库，用<code>--enable-instrumentation</code>选项指定。默认的库包含了一组桩，和如下的设置等效：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">./configure [...] --enable-instrumentation</span><br><span class="line">./configure [...] --enable-instrumentation=&quot;instrument/stubs&quot;</span><br></pre></td></tr></table></figure></p>
+<p>自定义的库要创建一个独立的目录，例如”instrument/myinstrument”，将”instrument/stubs”目录拷贝进去，然后使用如下的指令设定：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">./configure [...] --enable-instrumentation=&quot;instrument/myinstrument&quot;</span><br></pre></td></tr></table></figure></p>
+<p>指令命令：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">instrument [command]    用[command]调用BX_INSTR_DEBUG_CMD指令回调</span><br></pre></td></tr></table></figure></p>
+<p><strong> 10. 其他命令（Other Commands） </strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">命令</th>
+<th style="text-align:left">解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">ptime</td>
+<td style="text-align:left">打印当前的时间（从开始模拟到现在的ticks）</td>
+</tr>
+<tr>
+<td style="text-align:left">sb delta</td>
+<td style="text-align:left">在未来执行中插入一个时间断点“delta”指令(“delta”是一个64位的整数，跟着字母”L”，例如1000L</td>
+</tr>
+<tr>
+<td style="text-align:left">sba time</td>
+<td style="text-align:left">在时间“time”处插入一个时间断点(“time”同上书delta</td>
+</tr>
+<tr>
+<td style="text-align:left">print-stack [num words]</td>
+<td style="text-align:left">打印num words个栈顶端的16-bit字。”num words”默认是16。只在保护模式下栈的段寄存器基址是0的情况下才有效。</td>
+</tr>
+<tr>
+<td style="text-align:left">modebp</td>
+<td style="text-align:left">触发CPU模式转换断点</td>
+</tr>
+<tr>
+<td style="text-align:left">ldsym [global] filename [offset]</td>
+<td style="text-align:left">从文件’filename’加载符号。如果添加了全局关键字，在所有的上下文中（即使那个上下文没有加载这些符号）符号都可见。Offset(默认值为0) 被添加到每一个符号条目。符号仅仅不加载当前正在执行的上下文。符号文件由零个或多行的”%x %s”格式的组成。</td>
+</tr>
+</tbody>
+</table>
+<p>单独介绍show 命令<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">show [string]</span><br></pre></td></tr></table></figure></p>
+<p>开启显示符号信息<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">show 		 - 显示当前的模式</span><br><span class="line">show mode     - 当处理器切换模式时显示</span><br><span class="line">show int      - 当中断发生时显示</span><br><span class="line">show call     - 当调用发生时显示</span><br><span class="line">show ret      - 当返回发生时显示</span><br><span class="line">show off      - 关闭符号信息</span><br><span class="line">show dbg-all  - 开启所有的显示标记</span><br><span class="line">show dbg-none - 关闭所有的显示标记</span><br></pre></td></tr></table></figure></p>
+<p><strong> 11. Bochs调试器GUI（The Bochs debugger gui） </strong></p>
+<p>在Windows和GDK2中可以使用Bochs命令行调试器的图形界面的前端。要或私用GUI调试器，在编译时就需要用默认的调试器开关和参数标记<code>--enable-debugger-gui</code>进行配置。例如:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">./configure --enable-debugger --enable-disasm --enable-debugger-gui</span><br></pre></td></tr></table></figure>
+<p>在运行时，为了使用GUI代替命令行需要使用gui_debug值添加进display_library选项参数中。如下的例子显示了如何用“X”GUI使用GUID调试器。:<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">display_library: x, options=&quot;gui_debug&quot;</span><br></pre></td></tr></table></figure></p>
+<p>GUI调试器由一个菜单栏，按钮栏和一些子窗口组成，这些子窗口可以显示CPU寄存器，反汇编输出，内存dump和内部的调试器输出。同时也有一个可以输入命令的命令行提示符可用。</p>
+<p>GUI调试器的大部分的设置被保存在INI文件中，在调试器下次运行时可以自动恢复它。</p>
+<h4 id="调试示例"><a href="#调试示例" class="headerlink" title="调试示例"></a>调试示例</h4><p><strong>1.启动方法</strong></p>
+<p>Windows上关联了EXE，直接双击配置文件（*.bxrc）即可运行。或者另外在一种方法，从开始菜单或桌面启动bochs.exe，然后从加载中选择配置文件，启动即可。</p>
+<p>Windows上要调试，则要使用<code>bochsdbg.exe</code>打开配置文件，并启动。</p>
+<p><strong>修订历史</strong></p>
+<ul>
+<li>2017-09-03 11:21:23        完成文章</li>
+</ul>
+<p>By Andy @2017-09-03 11:21:23</p>
+  
+	</div>
+		<footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/翻译/">翻译</a>►<a class="article-category-link" href="/categories/翻译/笔记/">笔记</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Bochs/">Bochs</a><a href="/tags/ReactOS/">ReactOS</a>
+  </div>
+
+</div>
+
+
+
+	<div class="article-share" id="share">
+	
+	  <div data-url="https://dbgtech.github.io/2017/09/03/Bochs-Internal-debugger-manual-translation.html" data-title="Bochs内置调试器使用 | DbgTech" data-tsina="" class="share clearfix">
+	  </div>
+	
+	</div>
+
+
+</footer>
+
+   	       
+	</article>
+	
+<nav class="article-nav clearfix">
+ 
+ <div class="prev" >
+ <a href="/2017/09/06/Windows-Subsystem-Linux-internals.html" title="Windows WSL子系统（Windows Subsystem for Linux）">
+  <strong>上一篇：</strong><br/>
+  <span>
+  Windows WSL子系统（Windows Subsystem for Linux）</span>
+</a>
+</div>
+
+
+<div class="next">
+<a href="/2017/08/04/Windows-X64-Try-Except-Finally.html"  title="Windows X64的Ring3层异常处理机制">
+ <strong>下一篇：</strong><br/> 
+ <span>Windows X64的Ring3层异常处理机制
+</span>
+</a>
+</div>
+
+</nav>
+
+	
+
+</div>  
+      <div class="openaside"><a class="navbutton" href="#" title="显示侧边栏"></a></div>
+
+  <div id="toc" class="toc-aside">
+  <strong class="toc-title">文章目录</strong>
+ 
+ <ol class="toc"><li class="toc-item toc-level-4"><a class="toc-link" href="#使用Bochs内置调试器"><span class="toc-number">1.</span> <span class="toc-text">使用Bochs内置调试器</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#调试示例"><span class="toc-number">2.</span> <span class="toc-text">调试示例</span></a></li></ol>
+ 
+  </div>
+
+<div id="asidepart">
+<div class="closeaside"><a class="closebutton" href="#" title="隐藏侧边栏"></a></div>
+<aside class="clearfix">
+
+  <div class="linkslist">
+  <p class="asidetitle">专栏</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://dbgtech.github.io/Tools/" target="_blank" title="常用工具">常用工具</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  
+<div class="categorieslist">
+	<p class="asidetitle">分类</p>
+		<ul>
+		
+		  
+			<li><a href="/categories/散记/" title="散记">散记<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/笔记/" title="笔记">笔记<sup>6</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/读书/" title="读书">读书<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/调试/" title="调试">调试<sup>8</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/转载/" title="转载">转载<sup>1</sup></a></li>
+		  
+		
+		</ul>
+</div>
+
+
+  
+<div class="tagslist">
+	<p class="asidetitle">标签</p>
+		<ul class="clearfix">
+		
+			
+				<li><a href="/tags/Windbg/" title="Windbg">Windbg<sup>5</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Exception/" title="Exception">Exception<sup>4</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Windows/" title="Windows">Windows<sup>3</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/心情/" title="心情">心情<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/X86汇编/" title="X86汇编">X86汇编<sup>2</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Markdown/" title="Markdown">Markdown<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/笔记/" title="笔记">笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Stack-Cookie/" title="Stack Cookie">Stack Cookie<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/time/" title="time">time<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C/C++">C/C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Win10/" title="Win10">Win10<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/UWP/" title="UWP">UWP<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/读书笔记/" title="读书笔记">读书笔记<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C\C++">C\C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/反思/" title="反思">反思<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/实模式/" title="实模式">实模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/保护模式/" title="保护模式">保护模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/运行时库/" title="运行时库">运行时库<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/WSL/" title="WSL">WSL<sup>1</sup></a></li>
+			
+		
+		</ul>
+</div>
+
+
+  <div class="linkslist">
+  <p class="asidetitle">友情链接</p>
+    <ul>
+        
+          <li>
+            
+            	<a href="https://git-scm.com/book/zh/v2" target="_blank" title="Git">Git</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://hexo.io/zh-cn/docs/" target="_blank" title="Hexo">Hexo</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://36kr.com/" target="_blank" title="36氪">36氪</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://wiki.osdev.org/Expanded_Main_Page" target="_blank" title="OSDev">OSDev</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.reactos.com/" target="_blank" title="ReactOS">ReactOS</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.freebuf.com/" target="_blank" title="FreeBuf">FreeBuf</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.appinn.com/markdown/" target="_blank" title="Makedown">Makedown</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="https://www.huxiu.com/" target="_blank" title="虎嗅网">虎嗅网</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://bbs.pediy.com/" target="_blank" title="看雪论坛">看雪论坛</a>
+            
+          </li>
+        
+          <li>
+            
+            	<a href="http://www.geekpark.net/" target="_blank" title="极客公园">极客公园</a>
+            
+          </li>
+        
+    </ul>
+</div>
+
+  <div class="rsspart">
+	<a href="/atom.xml" target="_blank" title="rss">RSS 订阅</a>
+</div>
+
+  
+  <div class="archiveslist">
+    <p class="asidetitle"><a href="/archives">归档</a></p>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/12/">十二月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/11/">十一月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/01/">一月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/12/">十二月 2016</a><span class="archive-list-count">1</span></li></ul>
+  </div>
+
+
+</aside>
+</div>
+    </div>
+    <footer><div id="footer" >
+		<p class="copyright">
+		Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Jacman">Jacman</a> © 2018 
+		
+		<a href="/about" target="_blank" title="Andy Guo">Andy Guo</a>
+		
+		</p>
+</div>
+</footer>
+    <script src="/js/jquery-2.0.3.min.js"></script>
+<script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+<script src="/js/jquery.qrcode-0.12.0.min.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.navbar').click(function(){
+    $('header nav').toggleClass('shownav');
+  });
+  var myWidth = 0;
+  function getSize(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+  };
+  var m = $('#main'),
+      a = $('#asidepart'),
+      c = $('.closeaside'),
+      o = $('.openaside');
+  c.click(function(){
+    a.addClass('fadeOut').css('display', 'none');
+    o.css('display', 'block').addClass('fadeIn');
+    m.addClass('moveMain');
+  });
+  o.click(function(){
+    o.css('display', 'none').removeClass('beforeFadeIn');
+    a.css('display', 'block').removeClass('fadeOut').addClass('fadeIn');      
+    m.removeClass('moveMain');
+  });
+  $(window).scroll(function(){
+    o.css("top",Math.max(80,260-$(this).scrollTop()));
+  });
+  
+        getSize();
+        if (myWidth >= 1024) {
+          c.click();
+        }
+  
+  $(window).resize(function(){
+    getSize(); 
+    if (myWidth >= 1024) {
+      $('header nav').removeClass('shownav');
+    }else{
+      m.removeClass('moveMain');
+      a.css('display', 'block').removeClass('fadeOut');
+      o.css('display', 'none');
+      
+      $('#toc.toc-aside').css('display', 'none');
+        
+    }
+  });
+});
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var ai = $('.article-content>iframe'),
+      ae = $('.article-content>embed'),
+      t  = $('#toc'),
+      ta = $('#toc.toc-aside'),
+      o  = $('.openaside'),
+      c  = $('.closeaside');
+  if(ai.length>0){
+    ai.wrap('<div class="video-container" />');
+  };
+  if(ae.length>0){
+   ae.wrap('<div class="video-container" />');
+  };
+  c.click(function(){
+    ta.css('display', 'block').addClass('fadeIn');
+  });
+  o.click(function(){
+    ta.css('display', 'none');
+  });
+  $(window).scroll(function(){
+    ta.css("top",Math.max(140,320-$(this).scrollTop()));
+  });
+});
+</script>
+
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+  var $this = $('.share'),
+      url = $this.attr('data-url'),
+      encodedUrl = encodeURIComponent(url),
+      title = $this.attr('data-title'),
+      tsina = $this.attr('data-tsina'),
+      description = $this.attr('description');
+  var html = [
+  '<div class="hoverqrcode clearfix"></div>',
+  '<a class="overlay" id="qrcode"></a>',
+  '<a href="https://www.facebook.com/sharer.php?u=' + encodedUrl + '" class="article-share-facebook" target="_blank" title="Facebook"></a>',
+  '<a href="https://twitter.com/intent/tweet?url=' + encodedUrl + '" class="article-share-twitter" target="_blank" title="Twitter"></a>',
+  '<a href="#qrcode" class="article-share-qrcode" title="微信"></a>',
+  '<a href="http://widget.renren.com/dialog/share?resourceUrl=' + encodedUrl + '&srcUrl=' + encodedUrl + '&title=' + title +'" class="article-share-renren" target="_blank" title="人人"></a>',
+  '<a href="http://service.weibo.com/share/share.php?title='+title+'&url='+encodedUrl +'&ralateUid='+ tsina +'&searchPic=true&style=number' +'" class="article-share-weibo" target="_blank" title="微博"></a>',
+  '<span title="Share to"></span>'
+  ].join('');
+  $this.append(html);
+
+  $('.hoverqrcode').hide();
+
+  var myWidth = 0;
+  function updatehoverqrcode(){
+    if( typeof( window.innerWidth ) == 'number' ) {
+      myWidth = window.innerWidth;
+    } else if( document.documentElement && document.documentElement.clientWidth) {
+      myWidth = document.documentElement.clientWidth;
+    };
+    var qrsize = myWidth > 1024 ? 200:100;
+    var options = {render: 'image', size: qrsize, fill: '#2ca6cb', text: url, radius: 0.5, quiet: 1};
+    var p = $('.article-share-qrcode').position();
+    $('.hoverqrcode').empty().css('width', qrsize).css('height', qrsize)
+                          .css('left', p.left-qrsize/2+20).css('top', p.top-qrsize-10)
+                          .qrcode(options);
+  };
+  $(window).resize(function(){
+    $('.hoverqrcode').hide();
+  });
+  $('.article-share-qrcode').click(function(){
+    updatehoverqrcode();
+    $('.hoverqrcode').toggle();
+  });
+  $('.article-share-qrcode').hover(function(){}, function(){
+      $('.hoverqrcode').hide();
+  });
+});   
+</script>
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){ 
+  $('.article-content').each(function(i){
+    $(this).find('img').each(function(){
+      if ($(this).parent().hasClass('fancybox')) return;
+      var alt = this.alt;
+      if (alt) $(this).after('<span class="caption">' + alt + '</span>');
+      $(this).wrap('<a href="' + this.src + '" title="' + alt + '" class="fancybox"></a>');
+    });
+    $(this).find('.fancybox').each(function(){
+      $(this).attr('rel', 'article' + i);
+    });
+  });
+  if($.fancybox){
+    $('.fancybox').fancybox();
+  }
+}); 
+</script>
+
+
+
+<!-- Analytics Begin -->
+
+
+
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "//hm.baidu.com/hm.js?e6d1f421bbc9962127a50488f9ed37d1";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+
+
+
+<!-- Analytics End -->
+
+<!-- Totop Begin -->
+
+	<div id="totop">
+	<a title="返回顶部"><img src="/img/scrollup.png"/></a>
+	</div>
+	<script src="/js/totop.js"></script>
+
+<!-- Totop End -->
+
+<!-- MathJax Begin -->
+<!-- mathjax config similar to math.stackexchange -->
+
+
+<!-- MathJax End -->
+
+<!-- Tiny_search Begin -->
+
+<!-- Tiny_search End -->
+
+  </body>
+</html>
+
