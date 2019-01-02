@@ -75,6 +75,133 @@
     <header class="article-info clearfix">
   <h1 itemprop="name">
     
+      <a href="/2017/07/26/VS2008-Windows-Try-Except-Finally.html" title="Windows X86的ring3结构化异常处理" itemprop="url">Windows X86的ring3结构化异常处理</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-07-26T12:52:23.000Z" itemprop="datePublished"> 发表于 2017-07-26</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>前面总结过Windows的异常分发机制，但是对于分发到指定异常处理器后的内容没有进一步总结。这个里面涉及到异常过滤和栈“展开”等内容，尤其栈“展开”一直不明白怎么回事。既然不想糊里糊涂，那就总结一下搞明白，”纸上得来终觉浅，绝知此事要躬行”。</p>
+<p>这篇博文以seh程序为例来解析实际的应用程序中异常过滤和异常处理以及栈展开的内容。程序的代码如下代码块所示。代码非常简单，仅仅是main函数中调用了一个SehTest，在该函数中有三个__try块，一个为独立的代码块，另外两个嵌套。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br></pre></td><td class="code"><pre><span class="line">#include &quot;stdafx.h&quot;</span><br><span class="line">#include &lt;Windows.h&gt;</span><br><span class="line"></span><br><span class="line">int Filter_0(LPEXCEPTION_POINTERS p_exinfo)</span><br><span class="line">&#123;</span><br><span class="line">	if(p_exinfo-&gt;ExceptionRecord-&gt;ExceptionCode == EXCEPTION_ACCESS_VIOLATION)</span><br><span class="line">	&#123;</span><br><span class="line">		printf(&quot;存储保护异常\n&quot;);</span><br><span class="line">		return 1;</span><br><span class="line">	&#125;</span><br><span class="line">	else</span><br><span class="line">		return 0;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int Filter_2(LPEXCEPTION_POINTERS p_exinfo)</span><br><span class="line">&#123;</span><br><span class="line">	if(p_exinfo-&gt;ExceptionRecord-&gt;ExceptionCode == EXCEPTION_INT_DIVIDE_BY_ZERO)</span><br><span class="line">	&#123;</span><br><span class="line">		printf(&quot;被0除异常\n&quot;);</span><br><span class="line">		return 1;</span><br><span class="line">	&#125;</span><br><span class="line">	else</span><br><span class="line">		return 0;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">VOID SehTest()</span><br><span class="line">&#123;</span><br><span class="line">	ULONG ulVal = 0;</span><br><span class="line"></span><br><span class="line">	__try // 第一个 __try 域</span><br><span class="line">	&#123;</span><br><span class="line">		ulVal = 0x11111111; // 最后一位为1表示“在 __try 代码块中”</span><br><span class="line">	&#125;</span><br><span class="line">	__except(Filter_0(GetExceptionInformation()))</span><br><span class="line">	&#123;</span><br><span class="line">		ulVal = 0x11111110; // 最后一位为0表示“在 __except/__finally 代码块中”</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	__try // 第二个 __try 域</span><br><span class="line">	&#123;</span><br><span class="line">		ulVal = 0x22222222;</span><br><span class="line"></span><br><span class="line">		__try // 第三个 __try 域</span><br><span class="line">		&#123;</span><br><span class="line">			ulVal = 0x33333333;</span><br><span class="line"></span><br><span class="line">			*((ULONG*)NULL) = ulVal; // 触发异常</span><br><span class="line">		&#125;</span><br><span class="line">		__finally</span><br><span class="line">		&#123;</span><br><span class="line">			ulVal = 0x33333330;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	__except(Filter_2(GetExceptionInformation()))</span><br><span class="line">	&#123;</span><br><span class="line">		ulVal = 0x22222220;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	return;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">int _tmain(int argc, _TCHAR* argv[])</span><br><span class="line">&#123;</span><br><span class="line">	SehTest();</span><br><span class="line">	return 0;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/07/26/VS2008-Windows-Try-Except-Finally.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/调试/">调试</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/Windbg/">Windbg</a><a href="/tags/Exception/">Exception</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
+      <a href="/2017/07/26/read-dark-time-log.html" title="《暗时间》读书笔记" itemprop="url">《暗时间》读书笔记</a>
+  </h1>
+  <p class="article-author">By
+       
+		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
+		
+  <p class="article-time">
+    <time datetime="2017-07-26T02:07:03.000Z" itemprop="datePublished"> 发表于 2017-07-26</time>
+    
+  </p>
+</header>
+    <div class="article-content">
+    
+        <p>本篇是读《暗时间》的笔记或总结！总结与讲解可能是将书读薄的最佳的两个方法吧，就像书中刘未鹏说的要有自己的思考，总结和讲解时才会将自己的思考最大化。</p>
+<p>下面列举一下自己在阅读《暗时间》时感触比较深的几点。</p>
+<p>首先，用“学习时间（投入时间）”来衡量学习是错误的。这一点深感同意，很多时候长时间的学习，但是效率低下，倒不如一两天专心深入学习收获多。而应该按照“实际投入是时间与效率的乘积”这样来计算，其实就是学习效率很重要，学习效率进一步引申就是专注。书中的一个例子就是，大脑开始一件任务的时候，必须要有一定的时间来“热身”。举个例子，看了一会书之后，突然感到一阵无聊，忍不住打开浏览器，十分钟后想起来还要继续读书，但是要恢复当时的理想状态，需要一段时间来努力集中精力。将记忆中相关的知识激活起来，从而进入状态。上了十分钟网之后，原来的那些记忆已经被抑制了。如果“热身”需要一刻钟，看似十分钟的上网闲逛其实花费了25分钟。</p>
+<p>看了三个小时书，或者是调试了半个小时的程序之后，往往满脑子都是相关的东西，所有这些知识都处于活跃状态。换言之大脑中所有相关的记忆神经网络都被激活了，要达到这种忘记时间流逝的“沉浸”状态（心理学上叫“流体验”），不是三两分钟的事。而这种状态一旦被打破，无形间效率就会大打折扣。这也是为什么要创造大块时间来阅读重要东西。这样有利于“沉浸”进去，使得新知识可以与大脑中其他相关的各种既有的知识充分融合，关联起来。<br>
+    
+        
+    <p class="article-more-link">
+        
+            <a href="/2017/07/26/read-dark-time-log.html#more">Read More</a>
+        
+    </p>
+    </div>
+    <footer class="article-footer clearfix">
+<div class="article-catetags">
+
+<div class="article-categories">
+  <span></span>
+  <a class="article-category-link" href="/categories/读书/">读书</a>
+</div>
+
+
+  <div class="article-tags">
+  
+  <span></span> <a href="/tags/读书笔记/">读书笔记</a><a href="/tags/思维/">思维</a>
+  </div>
+
+</div>
+
+
+
+
+<div class="comments-count">
+	
+</div>
+
+</footer>
+
+
+    </article>
+
+
+
+
+
+
+   
+    
+    <article class="post-expand post" itemprop="articleBody"> 
+    <header class="article-info clearfix">
+  <h1 itemprop="name">
+    
       <a href="/2017/07/17/Windows-C-Time-Functions.html" title="Windows C 时间函数" itemprop="url">Windows C 时间函数</a>
   </h1>
   <p class="article-author">By
@@ -614,137 +741,9 @@
 
 
 
-   
-    
-    <article class="post-expand post" itemprop="articleBody"> 
-    <header class="article-info clearfix">
-  <h1 itemprop="name">
-    
-      <a href="/2017/01/02/2017-new-year-open.html" title="新年开端" itemprop="url">新年开端</a>
-  </h1>
-  <p class="article-author">By
-       
-		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
-		
-  <p class="article-time">
-    <time datetime="2017-01-02T08:13:30.000Z" itemprop="datePublished"> 发表于 2017-01-02</time>
-    
-  </p>
-</header>
-    <div class="article-content">
-    
-        <p>2017年了，新年了！Happy New Year！</p>
-<p>总想在新年说点什么，又突然没什么想说的了！看看2016年的新年开端博客，居然是最新博客的第二篇（原有博客不在此处，^_^）。看看2016年写的文章觉得就在眼前，好象是上一周的文章一样。其实，时光穿梭，一年时光已经逝去。看着看着，就像从中看到15年做了点什么，有点什么成绩！结果却是无奈，对15年似乎没有任何印象了，眼前全是16年的事情，像是昨天的事情一般。</p>
-<p>或许是因为2016年有太多太多重要的事情，来不及思考，来不及回味，一味地被推着向前。回头望望2016，中奖了，抑制不住地兴奋；父母来了，前后忙活生怕一点不周，让他们不适；订婚了，女朋友变成了未婚妻；结婚了，未婚妻变成了媳妇；正式进入婚姻生活，一点点不适。</p>
-<p>2015年最大的事是有了一个女朋友！2016年最大的事情就是有了一个老婆。还没来及回味婚礼，已经结束！还没来及体验新婚，已经进入正常柴米油盐。没有学会用新的方式来思考新的生活，依旧我行我素，碰到的是生活中的磕磕绊绊。需要渐渐学习宽容，学习用新的思考方式，思考生活。现在不是一个人，现在是两个人；现在不是一家人，现在是两家人；现在不只是家里人，现在开始要是初中，高中，大学，工作，几圈人。希望2017年，慢慢适应，渐渐磨砺，有更好的生活！<br>
-    
-        
-    <p class="article-more-link">
-        
-            <a href="/2017/01/02/2017-new-year-open.html#more">Read More</a>
-        
-    </p>
-    </div>
-    <footer class="article-footer clearfix">
-<div class="article-catetags">
-
-<div class="article-categories">
-  <span></span>
-  <a class="article-category-link" href="/categories/散记/">散记</a>
-</div>
-
-
-  <div class="article-tags">
-  
-  <span></span> <a href="/tags/心情/">心情</a>
-  </div>
-
-</div>
-
-
-
-
-<div class="comments-count">
-	
-</div>
-
-</footer>
-
-
-    </article>
-
-
-
-
-
-
-   
-    
-    <article class="post-expand post" itemprop="articleBody"> 
-    <header class="article-info clearfix">
-  <h1 itemprop="name">
-    
-      <a href="/2016/12/24/open-my-self-blog.html" title="独立博客开通啦！" itemprop="url">独立博客开通啦！</a>
-  </h1>
-  <p class="article-author">By
-       
-		<a href="/about" title="Andy Guo" target="_blank" itemprop="author">Andy Guo</a>
-		
-  <p class="article-time">
-    <time datetime="2016-12-24T01:41:28.000Z" itemprop="datePublished"> 发表于 2016-12-24</time>
-    
-  </p>
-</header>
-    <div class="article-content">
-    
-        <p>独立博客开通啦！！！</p>
-<p>独立博客开通啦！！！</p>
-<p>独立博客开通啦！！！</p>
-<p>重要的事情要说三遍，让我记住！博客很早之前就有了，对校内网有印象的小伙伴应该还记得它上面有日志功能，可后来感觉它忽的一下就没了，昙花一现！最终让我不再用它的原因其实很简单，太势利了，商业化太严重，到处都是推广与广告！无奈转战QQ博客，可是它也是繁杂无比，同样存在广告与推广。无奈，只好将所有文章放到CSDN上吧，CSDN作为技术站点，广告也有很多，但是它的博客相对清净！在本科，研究生期间在CSDN的博客发布了自己的一些心得，学习笔记和一些技术积累。</p>
-    
-        
-    <p class="article-more-link">
-        
-            <a href="/2016/12/24/open-my-self-blog.html#more">Read More</a>
-        
-    </p>
-    </div>
-    <footer class="article-footer clearfix">
-<div class="article-catetags">
-
-<div class="article-categories">
-  <span></span>
-  <a class="article-category-link" href="/categories/散记/">散记</a>
-</div>
-
-
-  <div class="article-tags">
-  
-  <span></span> <a href="/tags/心情/">心情</a>
-  </div>
-
-</div>
-
-
-
-
-<div class="comments-count">
-	
-</div>
-
-</footer>
-
-
-    </article>
-
-
-
-
-
-
 
   <nav id="page-nav" class="clearfix">
-    <a class="extend prev" rel="prev" href="/"><span></span>Prev</a><a class="page-number" href="/">1</a><span class="page-number current">2</span>
+    <a class="extend prev" rel="prev" href="/"><span></span>Prev</a><a class="page-number" href="/">1</a><span class="page-number current">2</span><a class="page-number" href="/page/3/">3</a><a class="extend next" rel="next" href="/page/3/">Next<span></span></a>
   </nav>
 
 </div>
@@ -774,6 +773,10 @@
 		
 		  
 			<li><a href="/categories/散记/" title="散记">散记<sup>2</sup></a></li>
+		  
+		
+		  
+			<li><a href="/categories/散集/" title="散集">散集<sup>2</sup></a></li>
 		  
 		
 		  
@@ -818,35 +821,15 @@
 			
 		
 			
+				<li><a href="/tags/心情/" title="心情">心情<sup>4</sup></a></li>
+			
+		
+			
 				<li><a href="/tags/Windows/" title="Windows">Windows<sup>3</sup></a></li>
 			
 		
 			
-				<li><a href="/tags/心情/" title="心情">心情<sup>2</sup></a></li>
-			
-		
-			
 				<li><a href="/tags/X86汇编/" title="X86汇编">X86汇编<sup>2</sup></a></li>
-			
-		
-			
-				<li><a href="/tags/Markdown/" title="Markdown">Markdown<sup>1</sup></a></li>
-			
-		
-			
-				<li><a href="/tags/笔记/" title="笔记">笔记<sup>1</sup></a></li>
-			
-		
-			
-				<li><a href="/tags/Stack-Cookie/" title="Stack Cookie">Stack Cookie<sup>1</sup></a></li>
-			
-		
-			
-				<li><a href="/tags/time/" title="time">time<sup>1</sup></a></li>
-			
-		
-			
-				<li><a href="/tags/C-C/" title="C/C++">C/C++<sup>1</sup></a></li>
 			
 		
 			
@@ -858,27 +841,31 @@
 			
 		
 			
-				<li><a href="/tags/读书笔记/" title="读书笔记">读书笔记<sup>1</sup></a></li>
+				<li><a href="/tags/Markdown/" title="Markdown">Markdown<sup>1</sup></a></li>
 			
 		
 			
-				<li><a href="/tags/C-C/" title="C\C++">C\C++<sup>1</sup></a></li>
+				<li><a href="/tags/笔记/" title="笔记">笔记<sup>1</sup></a></li>
 			
 		
 			
-				<li><a href="/tags/反思/" title="反思">反思<sup>1</sup></a></li>
+				<li><a href="/tags/Bochs/" title="Bochs">Bochs<sup>1</sup></a></li>
 			
 		
 			
-				<li><a href="/tags/翻译/" title="翻译">翻译<sup>1</sup></a></li>
+				<li><a href="/tags/ReactOS/" title="ReactOS">ReactOS<sup>1</sup></a></li>
 			
 		
 			
-				<li><a href="/tags/实模式/" title="实模式">实模式<sup>1</sup></a></li>
+				<li><a href="/tags/time/" title="time">time<sup>1</sup></a></li>
 			
 		
 			
-				<li><a href="/tags/保护模式/" title="保护模式">保护模式<sup>1</sup></a></li>
+				<li><a href="/tags/C-C/" title="C/C++">C/C++<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Stack-Cookie/" title="Stack Cookie">Stack Cookie<sup>1</sup></a></li>
 			
 		
 			
@@ -886,7 +873,23 @@
 			
 		
 			
+				<li><a href="/tags/保护模式/" title="保护模式">保护模式<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/C-C/" title="C\C++">C\C++<sup>1</sup></a></li>
+			
+		
+			
 				<li><a href="/tags/WSL/" title="WSL">WSL<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/反思/" title="反思">反思<sup>1</sup></a></li>
+			
+		
+			
+				<li><a href="/tags/Ubuntu/" title="Ubuntu">Ubuntu<sup>1</sup></a></li>
 			
 		
 		</ul>
@@ -967,7 +970,7 @@
   
   <div class="archiveslist">
     <p class="asidetitle"><a href="/archives">归档</a></p>
-      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/12/">十二月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/11/">十一月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/01/">一月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/12/">十二月 2016</a><span class="archive-list-count">1</span></li></ul>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/01/">一月 2019</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/12/">十二月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/11/">十一月 2018</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/01/">一月 2018</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/12/">十二月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a><span class="archive-list-count">4</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a><span class="archive-list-count">2</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a><span class="archive-list-count">3</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/01/">一月 2017</a><span class="archive-list-count">1</span></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2016/12/">十二月 2016</a><span class="archive-list-count">1</span></li></ul>
   </div>
 
 
@@ -976,7 +979,7 @@
     </div>
     <footer><div id="footer" >
 		<p class="copyright">
-		Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Jacman">Jacman</a> © 2018 
+		Powered by <a href="http://hexo.io" target="_blank" title="hexo">hexo</a> and Theme by <a href="https://github.com/wuchong/jacman" target="_blank" title="Jacman">Jacman</a> © 2019 
 		
 		<a href="/about" target="_blank" title="Andy Guo">Andy Guo</a>
 		
